@@ -24,12 +24,14 @@ start() ->
     ensure_started(crypto),
     ensure_started(ssl),
     ensure_started(log4erl),
+    application:start(erldis),
     application:start(erobix).
 
 %% @spec stop() -> ok
 %% @doc Stop the erobix server.
 stop() ->
     Res = application:stop(erobix),
+    application:stop(erldis),
     application:stop(log4erl),
     application:stop(ssl),
     application:stop(crypto),
