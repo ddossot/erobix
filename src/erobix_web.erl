@@ -36,19 +36,26 @@ stop() ->
 
 loop(Req, DocRoot) ->
     try erobix_router:handle(Req, DocRoot) of
-        {data, Type, Data} ->
-            Req:respond({200, [{"Content-Type", Type}], Data});
+        % TODO redis cache w/expiry
+        {data, Data} ->
+            XmlData = xmerl:export_simple([Data], xmerl_xml),
+            Req:respond({200, [{"Content-Type", ?OBIX_MIME_TYPE}], XmlData});
         
         {error, bad_request} ->
+            % FIXME return 200 and obix error like
+            % <err href="http://testbed.tml.hut.fi/obix/" displayName="Write Error" display="Unable to read request input." xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://obix.org/ns/schema/1.0" xmlns="http://obix.org/ns/schema/1.0"></err>
             Req:respond({400, [], "Bad Request"});
         
         {error, not_authorized} ->
+            % FIXME return 200 and obix error
             Req:respond({401, [{"WWW-Authenticate", "Basic realm=\"eroBIX Server\""}], "Unauthorized"});
         
         {error, forbidden} ->
+            % FIXME return 200 and obix error
             Req:respond({403, [], "Forbidden"});
         
         {error, not_found} ->
+            % FIXME return 200 and obix error
             Req:not_found()
     catch
         Type:Reason ->

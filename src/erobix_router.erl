@@ -14,21 +14,26 @@
 -export([handle/2]).
 
 handle(Req, _DocRoot) ->
-    Path = Req:get(path),
-
-    case string:tokens(Path, "/") of
-        ["obix"|_] ->
-            handle_obix(Req);
-        
-        _ ->
-            {error, bad_request}
-    end.
+  Path = Req:get(path),
+  
+  case string:tokens(Path, "/") of
+    [?OBIX_BASE_PATH|Rest] ->
+      handle_obix(Req, Rest);
+    
+    _ ->
+      {error, bad_request}
+  end.
 
 % Handling of /obix/*
-handle_obix(Req) ->
-    Method = Req:get(method),
-    Path = Req:get(path),
-    {data, <<"text/plain">>, <<"lobby!">>}.
+handle_obix(Req, PathElements) ->
+  % TODO enforce text/xml for put/post
+  case PathElements of
+    [] ->
+      erobix_lobby:serve(Req);
+    
+    _ ->
+      {error, bad_request}
+  end.
 
 %%
 %% Tests

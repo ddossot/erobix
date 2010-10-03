@@ -6,6 +6,8 @@
 %%% Copyright (c) 2010 David Dossot
 %%%
 
+-define(OBIX_BASE_PATH, "obix").
+-define(OBIX_MIME_TYPE, <<"text/xml">>).
 
 %% Log Definitions
 -define(fmt(Fmt, Arguments),

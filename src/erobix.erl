@@ -1,4 +1,5 @@
 %%%
+%%% @doc Main module.
 %%% @author David Dossot <david@dossot.net>
 %%%
 %%% See LICENSE for license information.
