@@ -26,13 +26,16 @@ handle(Req, _DocRoot) ->
 
 % Handling of /obix/*
 handle_obix(Req, PathElements) ->
-  % TODO enforce text/xml for put/post
+  % TODO accept only text/xml for put/post
   case PathElements of
     [] ->
       erobix_lobby:serve(Req);
+      
+    ["about"] ->
+      erobix_about:serve(Req);
     
     _ ->
-      {error, bad_request}
+      {error, not_found}
   end.
 
 %%

@@ -9,7 +9,8 @@
     erobix_deps,
     erobix_lib,
     erobix_router,
-    erobix_lobby
+    erobix_lobby,
+    erobix_about
   ]},
   {registered, []},
   {mod, {erobix_app, []}},
