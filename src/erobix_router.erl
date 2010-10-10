@@ -24,7 +24,7 @@ handle(Req, _DocRoot) ->
       {error, bad_request}
   end.
 
-% Handling of /obix/*
+%% Handling of /obix/*
 handle_obix(Req, PathElements) ->
   % TODO accept only text/xml for put/post
   case PathElements of

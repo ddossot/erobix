@@ -21,8 +21,8 @@ start(Options) ->
   {DocRoot, Options1} = get_option(docroot, Options),
   
   Loop = fun (Req) ->
-            ?MODULE:loop(Req, DocRoot)
-         end,
+    ?MODULE:loop(Req, DocRoot)
+  end,
          
   Result = mochiweb_http:start([{name, ?MODULE}, {loop, Loop} | Options1]),
 
