@@ -62,6 +62,7 @@ loop(Req, DocRoot) ->
       ?log_error_with_stacktrace(Type, Reason,
                                  "processing request: ~4096p, Body: ~4096p",
                                  [Req, erlang:get(mochiweb_request_body)]),
+      % FIXME return 200 and obix error
       Req:respond({500, [], <<"Server error">>})
   end.
 
