@@ -1,0 +1,4 @@
+#!/bin/sh
+cd `dirname $0`
+erlc -o $PWD/ebin test/erobix_int_tests.erl
+erl -pa $PWD/ebin $PWD/deps/*/ebin -noshell -boot start_sasl -config test/elog -s erobix_int_tests

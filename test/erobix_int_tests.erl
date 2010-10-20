@@ -16,16 +16,23 @@
 %% Runs all integration tests on localhost:8000
 start() ->
   application:start(ibrowse),
+  
+  etap:plan(unknown),
+  
   unauthenticated_tests(),
-  application:stop(ibrowse),
+  
+  etap:end_tests(),
+  
   init:stop(),
   ok.
 
 unauthenticated_tests() ->
+  etap:msg("Unauthenticated Tests"),
   get_lobby(),
   ok.
   
 get_lobby() ->
+  etap:msg("Lobby Tests"),
   LobbyHref = ?OBIX_SERVER_URL ++ "/",
   Result = ibrowse:send_req(LobbyHref, [], get),
   LobbyDom = ensure_valid_obix_response(Result),
@@ -36,12 +43,12 @@ get_lobby() ->
   % TODO test lobby specific child elements
   io:format("~n~1024p~n", [LobbyDom]),
   
-  io:format("(Unauth) Lobby: ok~n"),
   ok.
 
 ensure_valid_obix_response({_, _, Headers, Body}) ->
-  % TODO use etap
-  "text/xml" = proplists:get_value("Content-Type", Headers),
+  etap:is(proplists:get_value("Content-Type", Headers),
+          "text/xml",
+          "Obix response has 'text/xml' content type"),
   
   % validate against schema
   BaseDir = erobix_deps:get_base_dir(?MODULE),
@@ -53,12 +60,14 @@ ensure_valid_obix_response({_, _, Headers, Body}) ->
   Dom.
 
 ensure_href(ExpectedHref, {_, Attributes, _}) ->
-  % TODO use etap
-  ExpectedHref = proplists:get_value("href", Attributes),
+  etap:is(proplists:get_value("href", Attributes),
+          ExpectedHref,
+          "@href is correct"),
   ok.  
   
 ensure_obj_of_type(ExpectedType, {"{http://obix.org/ns/schema/1.0}obj", Attributes, _}) ->
-  % TODO use etap
-  ExpectedType = proplists:get_value("is", Attributes),
+  etap:is(proplists:get_value("is", Attributes),
+          ExpectedType,
+          "@is is correct"),
   ok.
 
