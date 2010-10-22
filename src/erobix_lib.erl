@@ -9,15 +9,31 @@
 -module(erobix_lib).
 -author('David Dossot <david@dossot.net>').
 
+-include_lib("xmerl/include/xmerl.hrl").
 -include("erobix.hrl").
 
 -export([build_xml_response/2]).
 
 build_xml_response(Req, Data) when is_tuple(Data) ->
-  do_build_xml_response(atom_to_list(Req:get(scheme)) ++ "://" ++ Req:get_header_value("host") ++ Req:get(path),
-                        Data).
+  do_build_xml_response(get_url(Req), Data).
 
 %% Private functions
+get_url(Req) ->
+  atom_to_list(Req:get(scheme)) ++ "://" ++ Req:get_header_value("host") ++ Req:get(path).
+
+normalize_url(RequestUrl, UrlToNormalize) when is_list(RequestUrl) ->
+  SlashedRequestUrl = ensure_trailing_slash(RequestUrl),
+  
+  RelativizedUrl = 
+    case string:str(UrlToNormalize, SlashedRequestUrl) of
+      0 ->
+        UrlToNormalize;
+      Index ->
+        string:substr(UrlToNormalize, Index + string:len(SlashedRequestUrl))
+    end,
+    
+  ensure_trailing_slash(RelativizedUrl).
+
 do_build_xml_response(Url, {ElementName, Attributes, Children}) when is_list(Url) ->
 
   ResponseData = {ElementName,
@@ -45,6 +61,16 @@ ensure_leading_slash(Url) when is_list(Url) ->
 %%
 -include_lib("eunit/include/eunit.hrl").
 -ifdef(TEST).
+
+normalize_url_test() ->
+  ?assertEqual("http://other/path/", normalize_url("http://foo/bar", "http://other/path")),
+  ?assertEqual("baz/", normalize_url("http://foo/bar", "http://foo/bar/baz")),
+  ?assertEqual("baz/", normalize_url("http://foo/bar/", "http://foo/bar/baz")),
+  ?assertEqual("baz/", normalize_url("http://foo/bar", "http://foo/bar/baz/")),
+  ?assertEqual("baz/", normalize_url("http://foo/bar/", "http://foo/bar/baz/")),
+  ?assertEqual("baz/", normalize_url("bar", "http://foo/bar/baz/")),
+  % TODO add support for ./baz
+  ok.
 
 ensure_trailing_slash_test() ->
   ?assertEqual("/", ensure_trailing_slash("")),
