@@ -16,24 +16,41 @@
 
 build_xml_response(Req, Data) when is_tuple(Data) ->
   do_build_xml_response(get_url(Req), Data).
-
+  
 %% Private functions
 get_url(Req) ->
   atom_to_list(Req:get(scheme)) ++ "://" ++ Req:get_header_value("host") ++ Req:get(path).
 
-normalize_url(RequestUrl, UrlToNormalize) when is_list(RequestUrl) ->
+normalize_url(RequestUrl, UrlToNormalize) when is_list(RequestUrl), is_list(UrlToNormalize) ->
   SlashedRequestUrl = ensure_trailing_slash(RequestUrl),
+  ValidatedUrl = validate_url(UrlToNormalize),
   
   RelativizedUrl = 
-    case string:str(UrlToNormalize, SlashedRequestUrl) of
+    case string:str(ValidatedUrl, SlashedRequestUrl) of
       0 ->
-        UrlToNormalize;
+        ValidatedUrl;
       Index ->
-        string:substr(UrlToNormalize, Index + string:len(SlashedRequestUrl))
+        string:substr(ValidatedUrl, Index + string:len(SlashedRequestUrl))
     end,
     
   ensure_trailing_slash(RelativizedUrl).
+  
+validate_url(Url = [$/|_]) ->
+  throw({unsupported_uri, Url});
+validate_url(Url) when is_list(Url) ->
+  case string:left(Url, 2) of
+    ".." ->
+      throw({unsupported_uri, Url});
+    "./" ->
+      string:substr(Url, 3);
+    _ ->
+      Url
+  end.
 
+normalize_xml(RequestUrl, Xml) when is_list(RequestUrl), is_list(Xml) ->
+  % TODO implement
+  ok.
+  
 do_build_xml_response(Url, {ElementName, Attributes, Children}) when is_list(Url) ->
 
   ResponseData = {ElementName,
@@ -68,8 +85,11 @@ normalize_url_test() ->
   ?assertEqual("baz/", normalize_url("http://foo/bar/", "http://foo/bar/baz")),
   ?assertEqual("baz/", normalize_url("http://foo/bar", "http://foo/bar/baz/")),
   ?assertEqual("baz/", normalize_url("http://foo/bar/", "http://foo/bar/baz/")),
-  ?assertEqual("baz/", normalize_url("bar", "http://foo/bar/baz/")),
-  % TODO add support for ./baz
+  ?assertEqual("baz/", normalize_url("http://foo/bar/", "baz")),
+  ?assertEqual("baz/", normalize_url("http://foo/bar/", "baz/")),
+  ?assertEqual("baz/", normalize_url("http://foo/bar/", "./baz/")),
+  ?assertThrow({unsupported_uri, "../baz/"}, normalize_url("http://foo/bar/", "../baz/")),
+  ?assertThrow({unsupported_uri, "/baz"}, normalize_url("http://foo/bar/", "/baz")),
   ok.
 
 ensure_trailing_slash_test() ->
