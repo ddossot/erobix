@@ -12,7 +12,7 @@
 -include_lib("xmerl/include/xmerl.hrl").
 -include("erobix.hrl").
 
--export([build_xml_response/2]).
+-export([build_xml_response/2, normalize_xml/2]).
 
 build_xml_response(Req, Data) when is_tuple(Data) ->
   do_build_xml_response(get_url(Req), Data).
@@ -48,8 +48,33 @@ validate_url(Url) when is_list(Url) ->
   end.
 
 normalize_xml(RequestUrl, Xml) when is_list(RequestUrl), is_list(Xml) ->
-  % TODO implement
-  ok.
+  {Doc, _} = xmerl_scan:string(Xml),
+  Normalized = normalize_xml(RequestUrl, Doc),
+  export_xml(Normalized);
+normalize_xml(RequestUrl,
+              Element = #xmlElement{name = Name,
+                                    namespace = #xmlNamespace{default = ?OBIX_NAMESPACE},
+                                    attributes = Attributes,
+                                    content = Content})
+  when is_list(RequestUrl), Name =/= ref ->
+  
+  Element#xmlElement{attributes = [normalize_attribute(RequestUrl, A) || A <- Attributes],
+                     content = [normalize_xml(RequestUrl, C) || C <- Content]};
+normalize_xml(RequestUrl,
+              Element = #xmlElement{content = Content})
+  when is_list(RequestUrl) ->
+  Element#xmlElement{content = [normalize_xml(RequestUrl, C) || C <- Content]};
+normalize_xml(RequestUrl, Other) when is_list(RequestUrl) ->
+  Other.
+
+normalize_attribute(RequestUrl,
+                    Attribute = #xmlAttribute{name = href,
+                                              value = Value})
+  when is_list(RequestUrl) ->
+  
+  Attribute#xmlAttribute{value = normalize_url(RequestUrl, Value)};
+normalize_attribute(_, Attribute) ->
+  Attribute.
   
 do_build_xml_response(Url, {ElementName, Attributes, Children}) when is_list(Url) ->
 
@@ -63,8 +88,11 @@ do_build_xml_response(Url, {ElementName, Attributes, Children}) when is_list(Url
                   ],
                   Children},
                   
-  xmerl:export_simple([ResponseData], xmerl_xml).
+  export_xml(ResponseData).
 
+export_xml(Document) ->
+  xmerl:export_simple([Document], xmerl_xml).
+  
 ensure_trailing_slash(Url) when is_list(Url) ->
   lists:reverse(ensure_leading_slash(lists:reverse(Url))).
 
@@ -90,6 +118,11 @@ normalize_url_test() ->
   ?assertEqual("baz/", normalize_url("http://foo/bar/", "./baz/")),
   ?assertThrow({unsupported_uri, "../baz/"}, normalize_url("http://foo/bar/", "../baz/")),
   ?assertThrow({unsupported_uri, "/baz"}, normalize_url("http://foo/bar/", "/baz")),
+  ok.
+  
+normalize_xml_test() ->
+    ?assertEqual("<?xml version=\"1.0\"?><obj href=\"rel/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://obix.org/ns/schema/1.0\" xmlns=\"http://obix.org/ns/schema/1.0\"/>",
+                 lists:flatten(normalize_xml("fake://url/", "<?xml version=\"1.0\"?><obj href=\"./rel\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://obix.org/ns/schema/1.0\" xmlns=\"http://obix.org/ns/schema/1.0\"/>"))),
   ok.
 
 ensure_trailing_slash_test() ->
