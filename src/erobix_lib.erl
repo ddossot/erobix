@@ -14,40 +14,17 @@
 
 -export([build_xml_response/2, normalize_xml/2]).
 
+-define(URI_SCHEME_SUFFIX, "://").
+
 build_xml_response(Req, Data) when is_tuple(Data) ->
   do_build_xml_response(get_url(Req), Data).
   
 %% Private functions
 get_url(Req) ->
-  atom_to_list(Req:get(scheme)) ++ "://" ++ Req:get_header_value("host") ++ Req:get(path).
-
-normalize_url(RequestUrl, UrlToNormalize) when is_list(RequestUrl), is_list(UrlToNormalize) ->
-  SlashedRequestUrl = ensure_trailing_slash(RequestUrl),
-  ValidatedUrl = validate_url(UrlToNormalize),
-  
-  RelativizedUrl = 
-    case string:str(ValidatedUrl, SlashedRequestUrl) of
-      0 ->
-        ValidatedUrl;
-      Index ->
-        string:substr(ValidatedUrl, Index + string:len(SlashedRequestUrl))
-    end,
-    
-  ensure_trailing_slash(RelativizedUrl).
-  
-validate_url(Url = [$/|_]) ->
-  throw({unsupported_uri, Url});
-validate_url(Url) when is_list(Url) ->
-  case string:left(Url, 2) of
-    ".." ->
-      throw({unsupported_uri, Url});
-    "./" ->
-      string:substr(Url, 3);
-    _ ->
-      Url
-  end.
-
+  atom_to_list(Req:get(scheme)) ++ ?URI_SCHEME_SUFFIX ++ Req:get_header_value("host") ++ Req:get(path).
+ 
 normalize_xml(RequestUrl, Xml) when is_list(RequestUrl), is_list(Xml) ->
+  % TODO support inheritance flattening (6.6.1)
   {Doc, _} = xmerl_scan:string(Xml),
   Normalized = normalize_xml(RequestUrl, Doc),
   export_xml(Normalized);
@@ -76,6 +53,68 @@ normalize_attribute(RequestUrl,
 normalize_attribute(_, Attribute) ->
   Attribute.
   
+normalize_url(RequestUrl, UrlToNormalize)
+  when is_list(RequestUrl), is_list(UrlToNormalize) ->
+  
+  normalize_url(ensure_trailing_slash(RequestUrl),
+                ensure_trailing_slash(UrlToNormalize),
+                uri_type(UrlToNormalize)).
+  
+normalize_url(RequestUrl, UrlToNormalize, globally_absolute) ->
+  case string:str(UrlToNormalize, RequestUrl) of
+    0 ->
+      UrlToNormalize;
+    Index ->
+      string:substr(UrlToNormalize, Index + string:len(RequestUrl))
+  end;
+
+normalize_url(RequestUrl, UrlToNormalize, server_absolute) ->
+  % keep only scheme and host port
+  {Scheme, Netloc, _, Query, Fragment} = mochiweb_util:urlsplit(RequestUrl),
+  ResultUrl = mochiweb_util:urlunsplit({Scheme, Netloc,  UrlToNormalize, Query, Fragment}),
+  % renormalize the newly formed global URL
+  normalize_url(RequestUrl, ResultUrl, globally_absolute);
+
+normalize_url(RequestUrl, UrlToNormalize, backup) ->
+  {Scheme, Netloc, Path, Query, Fragment} = mochiweb_util:urlsplit(RequestUrl),
+  
+  BackedUpPath =
+    case mochiweb_util:safe_relative_path(string:strip(Path, left, $/) ++ UrlToNormalize) of
+      undefined ->
+        throw_bad_uri(UrlToNormalize);
+      Other ->
+        Other
+    end,
+    
+  ResultUrl = mochiweb_util:urlunsplit({Scheme, Netloc, "/" ++ BackedUpPath, Query, Fragment}),
+  
+  % renormalize the newly formed global URL
+  normalize_url(RequestUrl, ResultUrl, globally_absolute);
+
+normalize_url(_, UrlToNormalize, relative) ->
+  UrlToNormalize;
+
+normalize_url(_, UrlToNormalize, _) ->
+  throw_bad_uri(UrlToNormalize).
+
+throw_bad_uri(Uri) ->
+  throw({unsupported_uri, Uri}).
+  
+uri_type(Uri) when is_list(Uri) ->
+  % TODO support fragment identifier
+  case string:str(Uri, ?URI_SCHEME_SUFFIX) of
+    0 ->
+      case string:left(Uri, 2) of
+        [$/|_] -> server_absolute;
+        ".."   -> backup;
+        "./"   -> unsupported;
+        _      -> relative
+      end;
+      
+    _ ->
+      globally_absolute
+  end.
+
 do_build_xml_response(Url, {ElementName, Attributes, Children}) when is_list(Url) ->
 
   ResponseData = {ElementName,
@@ -115,14 +154,17 @@ normalize_url_test() ->
   ?assertEqual("baz/", normalize_url("http://foo/bar/", "http://foo/bar/baz/")),
   ?assertEqual("baz/", normalize_url("http://foo/bar/", "baz")),
   ?assertEqual("baz/", normalize_url("http://foo/bar/", "baz/")),
-  ?assertEqual("baz/", normalize_url("http://foo/bar/", "./baz/")),
-  ?assertThrow({unsupported_uri, "../baz/"}, normalize_url("http://foo/bar/", "../baz/")),
-  ?assertThrow({unsupported_uri, "/baz"}, normalize_url("http://foo/bar/", "/baz")),
+  ?assertEqual("http://foo/baz/", normalize_url("http://foo/bar/", "../baz/")),
+  ?assertEqual("http://foo/baz/", normalize_url("http://foo/bar/", "/baz")),
+  ?assertEqual("baz/", normalize_url("http://foo/bar/", "/bar/baz")),
+  ?assertEqual("baz/", normalize_url("http://foo/bar/", "/bar/baz/")),
+  ?assertThrow({unsupported_uri, "./baz/"}, normalize_url("http://foo/bar/", "./baz/")),
+  ?assertThrow({unsupported_uri, "../../baz/"}, normalize_url("http://foo/bar/", "../../baz/")),
   ok.
   
 normalize_xml_test() ->
-    ?assertEqual("<?xml version=\"1.0\"?><obj href=\"rel/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://obix.org/ns/schema/1.0\" xmlns=\"http://obix.org/ns/schema/1.0\"/>",
-                 lists:flatten(normalize_xml("fake://url/", "<?xml version=\"1.0\"?><obj href=\"./rel\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://obix.org/ns/schema/1.0\" xmlns=\"http://obix.org/ns/schema/1.0\"/>"))),
+  ?assertEqual("<?xml version=\"1.0\"?><obj href=\"bar/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://obix.org/ns/schema/1.0\" xmlns=\"http://obix.org/ns/schema/1.0\"/>",
+               lists:flatten(normalize_xml("http://data/foo", "<?xml version=\"1.0\"?><obj href=\"/foo/bar\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://obix.org/ns/schema/1.0\" xmlns=\"http://obix.org/ns/schema/1.0\"/>"))),
   ok.
 
 ensure_trailing_slash_test() ->
