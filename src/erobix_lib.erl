@@ -28,6 +28,7 @@ normalize_xml(RequestUrl, Xml) when is_list(RequestUrl), is_list(Xml) ->
   {Doc, _} = xmerl_scan:string(Xml),
   Normalized = normalize_xml(RequestUrl, Doc),
   export_xml(Normalized);
+  
 normalize_xml(RequestUrl,
               Element = #xmlElement{name = Name,
                                     namespace = #xmlNamespace{default = ?OBIX_NAMESPACE},
@@ -35,24 +36,46 @@ normalize_xml(RequestUrl,
                                     content = Content})
   when is_list(RequestUrl), Name =/= ref ->
   
-  Element#xmlElement{attributes = [normalize_attribute(RequestUrl, A) || A <- Attributes],
-                     content = [normalize_xml(RequestUrl, C) || C <- Content]};
+  {NewRequestUrls, NormalizedAttributes} =
+    lists:unzip([normalize_attribute(RequestUrl, A) || A <- Attributes]),
+    
+  NewRequestUrl =
+    case lists:filter(fun(E) -> E =/= undefined end, NewRequestUrls) of
+      [] -> RequestUrl;
+      [Other|_] -> Other
+    end,
+  
+  Element#xmlElement{attributes = NormalizedAttributes,
+                     content = [normalize_xml(NewRequestUrl, C) || C <- Content]};
+                     
 normalize_xml(RequestUrl,
               Element = #xmlElement{content = Content})
   when is_list(RequestUrl) ->
   Element#xmlElement{content = [normalize_xml(RequestUrl, C) || C <- Content]};
+  
 normalize_xml(RequestUrl, Other) when is_list(RequestUrl) ->
   Other.
+
 
 normalize_attribute(RequestUrl,
                     Attribute = #xmlAttribute{name = href,
                                               value = Value})
   when is_list(RequestUrl) ->
   
-  Attribute#xmlAttribute{value = normalize_url(RequestUrl, Value)};
-normalize_attribute(_, Attribute) ->
-  Attribute.
+  NormalizedUrl = normalize_url(RequestUrl, Value),
   
+  NewRequestUrl =
+    case uri_type(NormalizedUrl) of
+      global_absolute -> NormalizedUrl;
+      relative when NormalizedUrl =/= ""-> RequestUrl ++ NormalizedUrl;
+      _ -> RequestUrl
+    end,
+  {NewRequestUrl, Attribute#xmlAttribute{value = NormalizedUrl}};
+  
+normalize_attribute(_, Attribute) ->
+  {undefined, Attribute}.
+
+
 normalize_url(RequestUrl, UrlToNormalize)
   when is_list(RequestUrl), is_list(UrlToNormalize) ->
   
@@ -60,7 +83,7 @@ normalize_url(RequestUrl, UrlToNormalize)
                 ensure_trailing_slash(UrlToNormalize),
                 uri_type(UrlToNormalize)).
   
-normalize_url(RequestUrl, UrlToNormalize, globally_absolute) ->
+normalize_url(RequestUrl, UrlToNormalize, global_absolute) ->
   case string:str(UrlToNormalize, RequestUrl) of
     0 ->
       UrlToNormalize;
@@ -73,7 +96,7 @@ normalize_url(RequestUrl, UrlToNormalize, server_absolute) ->
   {Scheme, Netloc, _, Query, Fragment} = mochiweb_util:urlsplit(RequestUrl),
   ResultUrl = mochiweb_util:urlunsplit({Scheme, Netloc,  UrlToNormalize, Query, Fragment}),
   % renormalize the newly formed global URL
-  normalize_url(RequestUrl, ResultUrl, globally_absolute);
+  normalize_url(RequestUrl, ResultUrl, global_absolute);
 
 normalize_url(RequestUrl, UrlToNormalize, backup) ->
   {Scheme, Netloc, Path, Query, Fragment} = mochiweb_util:urlsplit(RequestUrl),
@@ -89,7 +112,7 @@ normalize_url(RequestUrl, UrlToNormalize, backup) ->
   ResultUrl = mochiweb_util:urlunsplit({Scheme, Netloc, "/" ++ BackedUpPath, Query, Fragment}),
   
   % renormalize the newly formed global URL
-  normalize_url(RequestUrl, ResultUrl, globally_absolute);
+  normalize_url(RequestUrl, ResultUrl, global_absolute);
 
 normalize_url(_, UrlToNormalize, relative) ->
   UrlToNormalize;
@@ -112,8 +135,9 @@ uri_type(Uri) when is_list(Uri) ->
       end;
       
     _ ->
-      globally_absolute
+      global_absolute
   end.
+
 
 do_build_xml_response(Url, {ElementName, Attributes, Children}) when is_list(Url) ->
 
@@ -165,6 +189,12 @@ normalize_url_test() ->
 normalize_xml_test() ->
   ?assertEqual("<?xml version=\"1.0\"?><obj href=\"bar/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://obix.org/ns/schema/1.0\" xmlns=\"http://obix.org/ns/schema/1.0\"/>",
                lists:flatten(normalize_xml("http://data/foo", "<?xml version=\"1.0\"?><obj href=\"/foo/bar\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://obix.org/ns/schema/1.0\" xmlns=\"http://obix.org/ns/schema/1.0\"/>"))),
+  
+  ?assertEqual("<?xml version=\"1.0\"?><obj href=\"\" displayName=\"HomeControlCenter 1\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://obix.org/ns/schema/1.0\" xmlns=\"http://obix.org/ns/schema/1.0\"><str name=\"type\" displayName=\"Device Type\" href=\"type/\" val=\"HomeControlCenter:1\"/></obj>",
+               lists:flatten(normalize_xml("http://testbed.tml.hut.fi/obix/tg-at-tuas/1/", "<?xml version='1.0' encoding='UTF-8'?><obj href='http://testbed.tml.hut.fi/obix/tg-at-tuas/1/' displayName='HomeControlCenter 1' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' xsi:schemaLocation='http://obix.org/ns/schema/1.0' xmlns='http://obix.org/ns/schema/1.0'><str name='type' displayName='Device Type' href='http://testbed.tml.hut.fi/obix/tg-at-tuas/1/type/' val='HomeControlCenter:1'></str></obj>"))),
+               
+  ?assertEqual("<?xml version=\"1.0\"?><obj name=\"TestDevice\" href=\"\" displayName=\"Device for tests\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://obix.org/ns/schema/1.0\" xmlns=\"http://obix.org/ns/schema/1.0\"><enum name=\"conditionMode\" href=\"enum/\" displayName=\"Air Condition Mode\" val=\"homeDay\" writable=\"true\"><list href=\"range/\" is=\"obix:Range\"><obj name=\"homeDay\" displayName=\"At home: Day mode\"/></list></enum></obj>",
+               lists:flatten(erobix_lib:normalize_xml("http://testbed.tml.hut.fi/obix/test/TestDevice/", "<?xml version='1.0' encoding='UTF-8'?><obj name='TestDevice' href='http://testbed.tml.hut.fi/obix/test/TestDevice/' displayName='Device for tests' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' xsi:schemaLocation='http://obix.org/ns/schema/1.0' xmlns='http://obix.org/ns/schema/1.0'><enum name='conditionMode' href='http://testbed.tml.hut.fi/obix/test/TestDevice/enum/' displayName='Air Condition Mode' val='homeDay' writable='true'><list href='http://testbed.tml.hut.fi/obix/test/TestDevice/enum/range/' is='obix:Range'><obj name='homeDay' displayName='At home: Day mode'></obj></list></enum></obj>"))),               
   ok.
 
 ensure_trailing_slash_test() ->
