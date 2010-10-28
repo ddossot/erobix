@@ -14,14 +14,12 @@
 
 -export([build_xml_response/2, normalize_xml/2]).
 
--define(URI_SCHEME_SUFFIX, "://").
-
 build_xml_response(Req, Data) when is_tuple(Data) ->
   do_build_xml_response(get_url(Req), Data).
   
 %% Private functions
 get_url(Req) ->
-  atom_to_list(Req:get(scheme)) ++ ?URI_SCHEME_SUFFIX ++ Req:get_header_value("host") ++ Req:get(path).
+  mochiweb_util:urlunsplit({atom_to_list(Req:get(scheme)), Req:get_header_value("host"), Req:get(path), "", ""}).
  
 normalize_xml(RequestUrl, Xml) when is_list(RequestUrl), is_list(Xml) ->
   % TODO support inheritance flattening (6.6.1)
@@ -62,7 +60,7 @@ normalize_attribute(RequestUrl,
                                               value = Value})
   when is_list(RequestUrl) ->
   
-  NormalizedUrl = normalize_url(RequestUrl, Value),
+  NormalizedUrl = normalize_object_href(RequestUrl, Value),
   
   NewRequestUrl =
     case uri_type(NormalizedUrl) of
@@ -71,66 +69,56 @@ normalize_attribute(RequestUrl,
       _ -> RequestUrl
     end,
   {NewRequestUrl, Attribute#xmlAttribute{value = NormalizedUrl}};
-  
+
 normalize_attribute(_, Attribute) ->
   {undefined, Attribute}.
 
-
-normalize_url(RequestUrl, UrlToNormalize)
+%% @doc Ensure the object href complies to Erobix strict rules.
+%%      This is not applicable for ref elements, for which href is free.
+normalize_object_href(RequestUrl, UrlToNormalize)
   when is_list(RequestUrl), is_list(UrlToNormalize) ->
   
-  normalize_url(ensure_trailing_slash(RequestUrl),
+  normalize_object_href(ensure_trailing_slash(RequestUrl),
                 ensure_trailing_slash(UrlToNormalize),
                 uri_type(UrlToNormalize)).
   
-normalize_url(RequestUrl, UrlToNormalize, global_absolute) ->
+normalize_object_href(RequestUrl, UrlToNormalize, global_absolute) ->
   case string:str(UrlToNormalize, RequestUrl) of
     0 ->
-      UrlToNormalize;
+      throw_bad_uri(UrlToNormalize);
     Index ->
       string:substr(UrlToNormalize, Index + string:len(RequestUrl))
   end;
 
-normalize_url(RequestUrl, UrlToNormalize, server_absolute) ->
+normalize_object_href(RequestUrl, UrlToNormalize, server_absolute) ->
   % keep only scheme and host port
   {Scheme, Netloc, _, Query, Fragment} = mochiweb_util:urlsplit(RequestUrl),
   ResultUrl = mochiweb_util:urlunsplit({Scheme, Netloc,  UrlToNormalize, Query, Fragment}),
   % renormalize the newly formed global URL
-  normalize_url(RequestUrl, ResultUrl, global_absolute);
+  normalize_object_href(RequestUrl, ResultUrl, global_absolute);
 
-normalize_url(RequestUrl, UrlToNormalize, backup) ->
-  {Scheme, Netloc, Path, Query, Fragment} = mochiweb_util:urlsplit(RequestUrl),
-  
-  BackedUpPath =
-    case mochiweb_util:safe_relative_path(string:strip(Path, left, $/) ++ UrlToNormalize) of
-      undefined ->
-        throw_bad_uri(UrlToNormalize);
-      Other ->
-        Other
-    end,
-    
-  ResultUrl = mochiweb_util:urlunsplit({Scheme, Netloc, "/" ++ BackedUpPath, Query, Fragment}),
-  
-  % renormalize the newly formed global URL
-  normalize_url(RequestUrl, ResultUrl, global_absolute);
+normalize_object_href(RequestUrl, UrlToNormalize, current_dir) ->
+  normalize_object_href(RequestUrl, string:substr(UrlToNormalize, 3), relative);
 
-normalize_url(_, UrlToNormalize, relative) ->
+normalize_object_href(_, UrlToNormalize, relative) ->
   UrlToNormalize;
 
-normalize_url(_, UrlToNormalize, _) ->
+normalize_object_href(_, UrlToNormalize, _) ->
   throw_bad_uri(UrlToNormalize).
 
 throw_bad_uri(Uri) ->
   throw({unsupported_uri, Uri}).
   
 uri_type(Uri) when is_list(Uri) ->
-  % TODO support fragment identifier
-  case string:str(Uri, ?URI_SCHEME_SUFFIX) of
-    0 ->
-      case string:left(Uri, 2) of
+  % TODO deal wtih fragment
+  {Scheme, _Netloc, Path, _Query, _Fragment} = mochiweb_util:urlsplit(Uri),
+  
+  case Scheme of
+    [] ->
+      case string:left(Path, 2) of
         [$/|_] -> server_absolute;
         ".."   -> backup;
-        "./"   -> unsupported;
+        "./"   -> current_dir;
         _      -> relative
       end;
       
@@ -170,20 +158,29 @@ ensure_leading_slash(Url) when is_list(Url) ->
 -include_lib("eunit/include/eunit.hrl").
 -ifdef(TEST).
 
-normalize_url_test() ->
-  ?assertEqual("http://other/path/", normalize_url("http://foo/bar", "http://other/path")),
-  ?assertEqual("baz/", normalize_url("http://foo/bar", "http://foo/bar/baz")),
-  ?assertEqual("baz/", normalize_url("http://foo/bar/", "http://foo/bar/baz")),
-  ?assertEqual("baz/", normalize_url("http://foo/bar", "http://foo/bar/baz/")),
-  ?assertEqual("baz/", normalize_url("http://foo/bar/", "http://foo/bar/baz/")),
-  ?assertEqual("baz/", normalize_url("http://foo/bar/", "baz")),
-  ?assertEqual("baz/", normalize_url("http://foo/bar/", "baz/")),
-  ?assertEqual("http://foo/baz/", normalize_url("http://foo/bar/", "../baz/")),
-  ?assertEqual("http://foo/baz/", normalize_url("http://foo/bar/", "/baz")),
-  ?assertEqual("baz/", normalize_url("http://foo/bar/", "/bar/baz")),
-  ?assertEqual("baz/", normalize_url("http://foo/bar/", "/bar/baz/")),
-  ?assertThrow({unsupported_uri, "./baz/"}, normalize_url("http://foo/bar/", "./baz/")),
-  ?assertThrow({unsupported_uri, "../../baz/"}, normalize_url("http://foo/bar/", "../../baz/")),
+uri_type_test() ->
+  ?assertEqual(global_absolute, uri_type("http://server/obix/a")),
+  ?assertEqual(server_absolute, uri_type("/a")),
+  ?assertEqual(backup, uri_type("../a")),
+  ?assertEqual(current_dir, uri_type("./a")),
+  ?assertEqual(relative, uri_type("a")),
+  ok.
+
+normalize_object_href_test() ->
+  ?assertEqual("baz/", normalize_object_href("http://server/obix/foo", "http://server/obix/foo/baz")),
+  ?assertEqual("baz/", normalize_object_href("http://server/obix/foo/", "http://server/obix/foo/baz")),
+  ?assertEqual("baz/", normalize_object_href("http://server/obix/foo", "http://server/obix/foo/baz/")),
+  ?assertEqual("baz/", normalize_object_href("http://server/obix/foo/", "http://server/obix/foo/baz/")),
+  ?assertEqual("baz/", normalize_object_href("http://server/obix/foo", "baz")),
+  ?assertEqual("baz/", normalize_object_href("http://server/obix/foo", "baz/")),
+  ?assertEqual("baz/", normalize_object_href("http://server/obix/foo", "/obix/foo/baz")),
+  ?assertEqual("baz/", normalize_object_href("http://server/obix/foo", "/obix/foo/baz/")),
+  ?assertEqual("baz/", normalize_object_href("http://server/obix/foo/", "./baz/")),
+  
+  ?assertThrow({unsupported_uri, "http://server/baz/"}, normalize_object_href("http://server/obix/foo", "/baz")),
+  ?assertThrow({unsupported_uri, "http://other/path/"}, normalize_object_href("http://server/obix/foo", "http://other/path")),
+  ?assertThrow({unsupported_uri, "../baz/"}, normalize_object_href("http://server/obix/foo/", "../baz/")),
+  ?assertThrow({unsupported_uri, "../../baz/"}, normalize_object_href("http://server/obix/foo/", "../../baz/")),
   ok.
   
 normalize_xml_test() ->

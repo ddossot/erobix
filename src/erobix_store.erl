@@ -15,6 +15,7 @@
 -export([store_object/2]).
 
 store_object(StoragePath, Object) when is_list(StoragePath), is_record(Object, xmlElement) ->
+  % FIXME ensure StoragePath is allowed (here or at router level, with ACLs)
   % TODO consider using a global client
   erldis:exec(erldis_sup:client(),
               fun(C) ->
