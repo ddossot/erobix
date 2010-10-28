@@ -34,6 +34,6 @@ attributes() ->
   [{is, "obix:About"}, {display, "Obix About"}].
   
 children() ->
-  % TODO implement
+  % FIXME implement
   [].
 

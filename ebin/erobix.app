@@ -1,5 +1,5 @@
 {application, erobix,
- [{description, "Erlang oBIX Server"},
+ [{description, "eroBIX - Erlang oBIX Server"},
   {vsn, "0.1"},
   {modules, [
     erobix,
@@ -10,7 +10,10 @@
     erobix_lib,
     erobix_router,
     erobix_lobby,
-    erobix_about
+    erobix_about,
+    erobix_store,
+    erobix_index_server,
+    erobix_object_server
   ]},
   {registered, []},
   {mod, {erobix_app, []}},

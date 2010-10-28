@@ -1,5 +1,5 @@
 %%%
-%%% @doc eroBIX - Erlang oBIX Server
+%%% @doc eroBIX includes
 %%% @author David Dossot <david@dossot.net>
 %%%
 %%% See LICENSE for license information.

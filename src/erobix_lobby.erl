@@ -29,6 +29,6 @@ attributes() ->
   [{is, "obix:Lobby"}].
   
 children() ->
-  % TODO implement
+  % FIXME implement
   [erobix_about:as_ref()].
 

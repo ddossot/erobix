@@ -49,12 +49,17 @@ init([]) ->
          {ip, Ip},
                  {port, 8000},
                  {docroot, erobix_deps:local_path(["priv", "www"])}],
-    Web = {erobix_web,
+                 
+    ObjectIndex = {object_index,
+           {erobix_index_server, start_link, []},
+           permanent, 5000, worker, dynamic},
+           
+    Web = {web,
            {erobix_web, start, [WebConfig]},
            permanent, 5000, worker, dynamic},
 
-    Processes = [Web],
-    {ok, {{one_for_one, 10, 10}, Processes}}.
+    Processes = [ObjectIndex, Web],
+    {ok, {{one_for_one, 10, 120}, Processes}}.
 
 
 %%
