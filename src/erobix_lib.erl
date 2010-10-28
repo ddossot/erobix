@@ -97,7 +97,7 @@ normalize_object_href(RequestUrl, UrlToNormalize, server_absolute) ->
   % renormalize the newly formed global URL
   normalize_object_href(RequestUrl, ResultUrl, global_absolute);
 
-normalize_object_href(RequestUrl, UrlToNormalize, current_dir) ->
+normalize_object_href(RequestUrl, UrlToNormalize, current_dir_relative) ->
   normalize_object_href(RequestUrl, string:substr(UrlToNormalize, 3), relative);
 
 normalize_object_href(_, UrlToNormalize, relative) ->
@@ -118,7 +118,7 @@ uri_type(Uri) when is_list(Uri) ->
       case string:left(Path, 2) of
         [$/|_] -> server_absolute;
         ".."   -> backup;
-        "./"   -> current_dir;
+        "./"   -> current_dir_relative;
         _      -> relative
       end;
       
@@ -162,7 +162,7 @@ uri_type_test() ->
   ?assertEqual(global_absolute, uri_type("http://server/obix/a")),
   ?assertEqual(server_absolute, uri_type("/a")),
   ?assertEqual(backup, uri_type("../a")),
-  ?assertEqual(current_dir, uri_type("./a")),
+  ?assertEqual(current_dir_relative, uri_type("./a")),
   ?assertEqual(relative, uri_type("a")),
   ok.
 
