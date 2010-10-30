@@ -19,7 +19,7 @@ initialize() ->
   case erlang:nodes() of
     [] ->
       AboutXml = generate(),
-      {AboutObject, AboutExtents} = erobix_lib:parse_object_xml({url, "http://amulet:8888/obix/about"}, {xml, AboutXml}),
+      {AboutObject, AboutExtents} = erobix_lib:parse_object_xml({url, "http://0.0.0.0:8888/obix/about"}, AboutXml),
       erobix_store:store_object({storage_path, "about/"}, AboutObject, AboutExtents);
     _ ->
       noop
@@ -57,7 +57,7 @@ children() ->
 
 generate_test() ->
   AboutXml = generate(),
-  {{AboutObjectType, _}, {extents, RawAboutExtents}} = erobix_lib:parse_object_xml({url, "http://amulet:8888/obix/about"}, {xml, AboutXml}),
+  {{AboutObjectType, _}, {extents, RawAboutExtents}} = erobix_lib:parse_object_xml({url, "http://amulet:8888/obix/about"}, AboutXml),
   ?assertEqual(object, AboutObjectType),
   ?assertEqual(9, length(RawAboutExtents)),
   ok.
