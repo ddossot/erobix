@@ -8,15 +8,7 @@
 -module(erobix).
 -author('David Dossot <david@dossot.net>').
 
--export([start/0, stop/0, quit/0]).
-
-ensure_started(App) ->
-    case application:start(App) of
-        ok ->
-            ok;
-        {error, {already_started, App}} ->
-            ok
-    end.
+-export([start/0, initialize/0, stop/0, quit/0]).
 
 %% @spec start() -> ok
 %% @doc Start the erobix server.
@@ -27,6 +19,9 @@ start() ->
     ensure_started(log4erl),
     application:start(erldis),
     application:start(erobix).
+
+initialize() ->
+  erobix_about:initialize().
 
 %% @spec stop() -> ok
 %% @doc Stop the erobix server.
@@ -43,4 +38,13 @@ stop() ->
 quit() ->
     stop(),
     init:stop().
+
+%% Private functions
+ensure_started(App) ->
+    case application:start(App) of
+        ok ->
+            ok;
+        {error, {already_started, App}} ->
+            ok
+    end.
 

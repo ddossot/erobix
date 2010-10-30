@@ -18,7 +18,7 @@ serve(Req) ->
   
   case Method of
     'GET' ->
-      {data, {obj,attributes(), children()}};
+      erobix_lib:build_xml_response(Req, obj, attributes(), children());
 
     _ ->
       {error, bad_request}
@@ -29,6 +29,6 @@ attributes() ->
   [{is, "obix:Lobby"}].
   
 children() ->
-  % FIXME implement
-  [erobix_about:as_ref()].
+  % FIXME finish to implement
+  [{ref, [{name, "about"}, {href, "about/"}, {is, "obix:About"}], []}].
 

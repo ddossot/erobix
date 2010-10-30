@@ -18,12 +18,14 @@
 start(Options) ->
   log4erl:conf("conf/log4erl.cfg"),
   
+  erobix:initialize(),
+  
   {DocRoot, Options1} = get_option(docroot, Options),
   
   Loop = fun (Req) ->
     ?MODULE:loop(Req, DocRoot)
   end,
-         
+
   Result = mochiweb_http:start([{name, ?MODULE}, {loop, Loop} | Options1]),
 
   {ok, Version} = application:get_key(erobix, vsn),
@@ -36,8 +38,7 @@ stop() ->
 
 loop(Req, DocRoot) ->
   try erobix_router:handle(Req, DocRoot) of
-    {data, Data} ->
-      XmlData = erobix_lib:build_xml_response(Req, Data),
+    {xml, XmlData} ->
       Req:respond({200, [{"Content-Type", ?OBIX_MIME_TYPE}], XmlData});
     
     {error, bad_request} ->
@@ -56,7 +57,18 @@ loop(Req, DocRoot) ->
     {error, not_found} ->
       % FIXME return 200 and obix error
       ?log_info("Not Found: ~1024p", [Req]),
-      Req:not_found()
+      Req:not_found();
+    
+    {error, Cause} ->
+      % FIXME return 200 and obix error
+      ?log_info("~1024p: ~1024p", [Cause, Req]),
+      Req:respond({500, [], <<"Server error">>});
+      
+    Other ->
+      % FIXME return 200 and obix error
+      ?log_info("Unknown response type: ~1024p", [Other]),
+      Req:respond({500, [], <<"Server error">>})
+    
   catch
     Type:Reason ->
       ?log_error_with_stacktrace(Type, Reason,
