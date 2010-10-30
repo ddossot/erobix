@@ -42,7 +42,7 @@ loop(Req, DocRoot) ->
       Req:respond({200, [{"Content-Type", ?OBIX_MIME_TYPE}], XmlData});
     
     {error, bad_request} ->
-      % FIXME return 200 and obix error like
+      % FIXME return 200 and obix error like obix:BadUriErr  or obix:UnsupportedErr
       % <err href="http://testbed.tml.hut.fi/obix/" displayName="Write Error" display="Unable to read request input." xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://obix.org/ns/schema/1.0" xmlns="http://obix.org/ns/schema/1.0"></err>
       Req:respond({400, [], "Bad Request"});
     
@@ -51,13 +51,15 @@ loop(Req, DocRoot) ->
       Req:respond({401, [{"WWW-Authenticate", "Basic realm=\"eroBIX Server\""}], "Unauthorized"});
     
     {error, forbidden} ->
-      % FIXME return 200 and obix error
+      % FIXME return 200 and obix error obix:PermissionErr
       Req:respond({403, [], "Forbidden"});
     
     {error, not_found} ->
-      % FIXME return 200 and obix error
-      ?log_info("Not Found: ~1024p", [Req]),
-      Req:not_found();
+      % FIXME return 200 and obix error 
+      Url = erobix_lib:get_url(Req),
+      ?log_info("Not Found: ~1024p", [Url]),
+      {xml, XmlData} = erobix_lib:build_xml_response(Url, err, [{is, "obix:BadUriErr"}, {displayName, "BadUriErr"}, {display, "Uri not found: " ++ Url}], []),
+      Req:respond({200, [{"Content-Type", ?OBIX_MIME_TYPE}], XmlData});
     
     {error, Cause} ->
       % FIXME return 200 and obix error

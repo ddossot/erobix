@@ -28,6 +28,7 @@ start() ->
 
 unauthenticated_tests() ->
   etap:msg("Unauthenticated Tests"),
+  % FIXME test bad URI err
   get_lobby(),
   get_about(),
   ok.

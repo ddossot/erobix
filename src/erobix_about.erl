@@ -44,6 +44,7 @@ children() ->
    {str, [{name, "productVersion"}, {val, Version}, {href, "productVersion/"}, {displayName, "Product Version"}], []},
    {uri, [{name, "vendorUrl"}, {val, "http://consulting.dossot.net"}, {href, "vendorUrl/"}, {displayName, "Vendor Url"}], []},
    {uri, [{name, "productUrl"}, {val, "http://github.net/ddossot/erobix"}, {href, "productUrl/"}, {displayName, "Product Url"}], []},
+   % FIXME generate real time
    {abstime, [{name, "serverTime"}, {null, "true"}, {href, "serverTime/"}, {displayName, "Server Time"}], []},
    {abstime, [{name, "serverBootTime"}, {val, erobix_lib:xml_zulu_timestamp()}, {href, "serverBootTime/"}, {displayName, "Server Boot Time"}], []}
   ].

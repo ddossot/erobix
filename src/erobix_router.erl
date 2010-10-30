@@ -35,6 +35,7 @@ handle_obix(Req, PathElements) ->
       erobix_lobby:serve(Req);
       
     ["about" | _] ->
+      % FIXME about should not be cached
       % FIXME extract / refactor this, which should be handled by the index server
       case Req:get(method) of
         'GET' ->

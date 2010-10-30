@@ -32,11 +32,15 @@ ensure_trailing_slash(Url) when is_list(Url) ->
 export_xml(Document) ->
   {xml, lists:flatten(xmerl:export_simple([Document], xmerl_xml))}.
 
+build_xml_response(Url, ElementName, Attributes, Children)
+  when is_list(Url), is_atom(ElementName), is_list(Attributes), is_list(Children) ->
+  
+  build_object_xml(ElementName, [ {?HREF_ATTRIBUTE_NAME, ensure_trailing_slash(Url)} | Attributes], Children);
+  
 build_xml_response(Req, ElementName, Attributes, Children)
   when is_atom(ElementName), is_list(Attributes), is_list(Children) ->
   
-  Url = get_url(Req),
-  build_object_xml(ElementName, [ {?HREF_ATTRIBUTE_NAME, ensure_trailing_slash(Url)} | Attributes], Children).
+  build_xml_response(get_url(Req), ElementName, Attributes, Children).
 
 build_object_xml(ElementName, Attributes, Children)
   when is_atom(ElementName), is_list(Attributes), is_list(Children) ->
