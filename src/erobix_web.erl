@@ -55,7 +55,6 @@ loop(Req, DocRoot) ->
       Req:respond({403, [], "Forbidden"});
     
     {error, not_found} ->
-      % FIXME return 200 and obix error 
       Url = erobix_lib:get_url(Req),
       ?log_info("Not Found: ~1024p", [Url]),
       {xml, XmlData} = erobix_lib:build_xml_response(Url, err, [{is, "obix:BadUriErr"}, {displayName, "BadUriErr"}, {display, "Uri not found: " ++ Url}], []),

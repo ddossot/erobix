@@ -12,34 +12,41 @@
 -export([start/0]).
 
 -define(OBIX_SERVER_URL, "http://localhost:8000/obix").
+-define(OBIX_NS, "{http://obix.org/ns/schema/1.0}").
 
 %% Runs all integration tests on localhost:8000
 start() ->
   application:start(ibrowse),
-  
   etap:plan(unknown),
   
   unauthenticated_tests(),
   
   etap:end_tests(),
-  
   init:stop(),
   ok.
 
 unauthenticated_tests() ->
-  etap:msg("Unauthenticated Tests"),
-  % FIXME test bad URI err
+  etap:msg("\nUnauthenticated Tests --------------------"),
+  bad_uri_err(),
   get_lobby(),
   get_about(),
   ok.
 
-get_lobby() ->
-  etap:msg("Lobby Tests"),
-  LobbyHref = ?OBIX_SERVER_URL ++ "/",
-  Result = ibrowse:send_req(LobbyHref, [], get),
-  LobbyDom = ensure_valid_obix_response(Result),
+bad_uri_err() ->
+  etap:msg("\nBad Uri Err Tests"),
+  BadUrl = ?OBIX_SERVER_URL ++ "/_bad_uri_/",
+  Result = ibrowse:send_req(BadUrl, [], get),
+  BarUriErrDom = ensure_valid_obix_response(Result),
+  ensure_href(BadUrl, BarUriErrDom),
+  ensure_obj_of_type("err", "obix:BadUriErr", BarUriErrDom),
+  ok.
   
-  ensure_href(LobbyHref, LobbyDom),
+get_lobby() ->
+  etap:msg("\nLobby Tests"),
+  LobbyUrl = ?OBIX_SERVER_URL ++ "/",
+  Result = ibrowse:send_req(LobbyUrl, [], get),
+  LobbyDom = ensure_valid_obix_response(Result),
+  ensure_href(LobbyUrl, LobbyDom),
   ensure_obj_of_type("obj", "obix:Lobby", LobbyDom),
   
   {_, _, [AboutRef]} = LobbyDom,
@@ -48,38 +55,43 @@ get_lobby() ->
   ok.
 
 get_about() ->
-  etap:msg("About Tests"),
-  AboutHref = ?OBIX_SERVER_URL ++ "/about/",
-  Result = ibrowse:send_req(AboutHref, [], get),
+  etap:msg("\nAbout Tests"),
+  AboutUrl = ?OBIX_SERVER_URL ++ "/about/",
+  Result = ibrowse:send_req(AboutUrl, [], get),
   AboutDom = ensure_valid_obix_response(Result),
-  
-  ensure_href(AboutHref, AboutDom),
+  ensure_href(AboutUrl, AboutDom),
   ensure_obj_of_type("obj", "obix:About", AboutDom),
   
   {_, _, [ObixVersionStr|_]} = AboutDom,
   ensure_href("obixVersion/", ObixVersionStr),
   ensure_obj_of_type("str", ObixVersionStr),
+  ensure_value("1.0", ObixVersionStr),
+  
+  ObixVersionUrl = AboutUrl ++ "obixVersion/",
+  Result2 = ibrowse:send_req(ObixVersionUrl, [], get),
+  ObixVersionDom = ensure_valid_obix_response(Result2),
+  ensure_href(ObixVersionUrl, ObixVersionDom),
+  ensure_obj_of_type("str", ObixVersionDom),
+  ensure_value("1.0", ObixVersionDom),
   ok.
 
 ensure_valid_obix_response({_, _, Headers, Body}) ->
   etap:is(proplists:get_value("Content-Type", Headers),
           "text/xml",
-          "Obix response has 'text/xml' content type"),
+          "response has 'text/xml' content type"),
   
   % validate against schema
   BaseDir = erobix_deps:get_base_dir(?MODULE),
   {ok, Model} = erlsom:compile_xsd_file(BaseDir ++ "/priv/xsd/obix.xsd"),
   {ok, _, _} = erlsom:scan(Body, Model),
   
-  % return a simple form DOM
+  % export a simple form DOM
   {ok, Dom, _} = erlsom:simple_form(Body),
+  
+  % ensure root element in obix namespace
+  {RootElement, _, _} = Dom,
+  etap:is(1, string:str(RootElement, ?OBIX_NS), "correct namespace"),
   Dom.
-
-ensure_href(ExpectedHref, {ActualElement, Attributes, _}) ->
-  etap:is(proplists:get_value("href", Attributes),
-          ExpectedHref,
-          "@href is correct on " ++ ActualElement),
-  ok.  
 
 ensure_obj_of_type(ExpectedElement, Actual) ->
   ensure_obj_of_type(ExpectedElement, undefined, Actual),
@@ -87,7 +99,7 @@ ensure_obj_of_type(ExpectedElement, Actual) ->
 
 ensure_obj_of_type(ExpectedElement,
                    ExpectedType,
-                   {ActualElement = "{http://obix.org/ns/schema/1.0}" ++ ExpectedElement, Attributes, _}) ->
+                   {ActualElement = ?OBIX_NS ++ ExpectedElement, Attributes, _}) ->
                    
   etap:is(proplists:get_value("is", Attributes),
           ExpectedType,
@@ -95,5 +107,17 @@ ensure_obj_of_type(ExpectedElement,
   ok;
 ensure_obj_of_type(ExpectedElement, _, Actual) ->
   etap:is(ExpectedElement, Actual, "correct xml element"),
+  ok.
+
+ensure_href(ExpectedHref, {ActualElement, Attributes, _}) ->
+  etap:is(proplists:get_value("href", Attributes),
+          ExpectedHref,
+          "@href is correct on " ++ ActualElement),
+  ok.  
+
+ensure_value(ExpectedValue, {ActualElement, Attributes, _}) ->
+  etap:is(proplists:get_value("val", Attributes),
+          ExpectedValue,
+          "@val is correct on " ++ ActualElement),
   ok.
 

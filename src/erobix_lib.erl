@@ -12,6 +12,11 @@
 -include_lib("xmerl/include/xmerl.hrl").
 -include("erobix.hrl").
 
+-define(SCHEMA_ATTRIBUTES,
+          [{'xmlns:xsi', "http://www.w3.org/2001/XMLSchema-instance"},
+           {'xsi:schemaLocation', ?OBIX_NAMESPACE},
+           {xmlns, ?OBIX_NAMESPACE}]).
+
 -define(HREF_ATTRIBUTE_NAME, href).
 -define(EXTENT_ATTRIBUTE_NAME, '_extent').
 
@@ -45,15 +50,7 @@ build_xml_response(Req, ElementName, Attributes, Children)
 build_object_xml(ElementName, Attributes, Children)
   when is_atom(ElementName), is_list(Attributes), is_list(Children) ->
 
-  ResponseData = {ElementName,
-                  [
-                   {'xmlns:xsi', "http://www.w3.org/2001/XMLSchema-instance"},
-                   {'xsi:schemaLocation', "http://obix.org/ns/schema/1.0"},
-                   {xmlns, "http://obix.org/ns/schema/1.0"}
-                   |Attributes
-                  ],
-                  Children},
-                  
+  ResponseData = {ElementName, ?SCHEMA_ATTRIBUTES ++ Attributes, Children},
   export_xml(ResponseData).
 
 parse_object_xml({url, RawRequestUrl}, {xml, RawObjectXml})
@@ -71,8 +68,11 @@ render_object_xml({url, RawRequestUrl}, {object, RawObject})
     #xmlElement{attributes = Attributes} =
       remove_extents(remove_root_href(RawObject)),
   
+  EnrichedAttributes =
+    add_schema_attributes_if_needed([#xmlAttribute{name=?HREF_ATTRIBUTE_NAME, value=RawRequestUrl} | Attributes]),
+      
   HrefedObject =
-    FilteredObject#xmlElement{attributes = [#xmlAttribute{name=?HREF_ATTRIBUTE_NAME, value=RawRequestUrl} | Attributes]},
+    FilteredObject#xmlElement{attributes = EnrichedAttributes},
   
   export_xml(HrefedObject).
 
@@ -93,6 +93,19 @@ xml_zulu_timestamp() ->
   
 find_all_extent_attributes(NormalizedObjectDoc) ->
   xmerl_xpath:string("//node()/@" ++ atom_to_list(?EXTENT_ATTRIBUTE_NAME), NormalizedObjectDoc).
+
+add_schema_attributes_if_needed(Attributes) when is_list(Attributes) ->
+  Finder =
+    fun(#xmlAttribute{name = Name, value = Value}) ->
+      Name =:= "xmlns" andalso Value =:= ?OBIX_NAMESPACE
+    end,
+    
+  case lists:any(Finder, Attributes) of
+    true ->
+      Attributes;
+    false ->
+      ?SCHEMA_ATTRIBUTES ++ Attributes
+  end.
 
 normalize_object_xml(RequestUrl, Doc) when is_list(RequestUrl) ->
   NoRootRefDoc = remove_root_href(Doc), 
