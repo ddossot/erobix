@@ -22,7 +22,7 @@
 
 -export([get_url/1, ensure_trailing_slash/1, build_xml_response/4, export_xml/1,
          build_object_xml/3, parse_object_xml/2, render_object_xml/2, render_object_xml/3,
-         xml_zulu_timestamp/0]).
+         xml_zulu_timestamp/0, xml_zulu_boottime/0]).
 
 get_url(Req) ->
   ensure_trailing_slash(mochiweb_util:urlunsplit({atom_to_list(Req:get(scheme)),
@@ -85,10 +85,13 @@ render_object_xml({url, RawRequestUrl}, {object, RawObject}, {extent, RawExtent}
   render_object_xml({url, RawRequestUrl}, {object, ChildObject}).
 
 xml_zulu_timestamp() ->
-    {{Year,Month,Day},{Hour,Min,Sec}} = erlang:universaltime(),
-    io_lib:format("~4.10.0B-~2.10.0B-~2.10.0BT~2.10.0B:~2.10.0B:~2.10.0BZ",
-        [Year, Month, Day, Hour, Min, Sec]).
-        
+  xml_zulu_format(erlang:universaltime()).
+
+xml_zulu_boottime() ->
+  {UpTimeMillisec, _} = erlang:statistics(wall_clock),
+  BootTimeGSec = calendar:datetime_to_gregorian_seconds(erlang:universaltime()) - (UpTimeMillisec div 1000),
+  xml_zulu_format(calendar:gregorian_seconds_to_datetime(BootTimeGSec)).
+
 %% Private functions
   
 find_all_extent_attributes(NormalizedObjectDoc) ->
@@ -236,6 +239,11 @@ ensure_leading_slash(Url = [$/|_]) ->
 ensure_leading_slash(Url) when is_list(Url) ->
   [$/|Url].
 
+xml_zulu_format({{Year,Month,Day},{Hour,Min,Sec}}) ->
+  io_lib:format("~4.10.0B-~2.10.0B-~2.10.0BT~2.10.0B:~2.10.0B:~2.10.0BZ",
+      [Year, Month, Day, Hour, Min, Sec]).
+
+  
 %%
 %% Tests
 %%
@@ -331,6 +339,10 @@ build_object_xml_test() ->
 
 xml_zulu_timestamp_test() ->
   ?assertMatch([_|_], xml_zulu_timestamp()),
+  ok.
+  
+xml_zulu_boottime_test() ->
+  ?assertMatch([_|_], xml_zulu_boottime()),
   ok.
 
 -endif.
