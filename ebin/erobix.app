@@ -12,7 +12,7 @@
     erobix_lobby,
     erobix_about,
     erobix_store,
-    erobix_index_server,
+    erobix_object_manager,
     erobix_object_server
   ]},
   {registered, []},

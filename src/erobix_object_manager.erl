@@ -1,12 +1,12 @@
 %%%
-%%% @doc Object index gen_server.
+%%% @doc Object object manager gen_server.
 %%% @author David Dossot <david@dossot.net>
 %%%
 %%% See LICENSE for license information.
 %%% Copyright (c) 2010 David Dossot
 %%%
 
--module(erobix_index_server).
+-module(erobix_object_manager).
 -author('David Dossot <david@dossot.net>').
 
 -behaviour(gen_server).
