@@ -8,7 +8,7 @@
 -module(erobix).
 -author('David Dossot <david@dossot.net>').
 
--export([start/0, initialize/0, stop/0, quit/0]).
+-export([start/0, stop/0, quit/0]).
 
 %% @spec start() -> ok
 %% @doc Start the erobix server.
@@ -19,9 +19,6 @@ start() ->
     ensure_started(log4erl),
     application:start(erldis),
     application:start(erobix).
-
-initialize() ->
-  erobix_about:initialize().
 
 %% @spec stop() -> ok
 %% @doc Stop the erobix server.

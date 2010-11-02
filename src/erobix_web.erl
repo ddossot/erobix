@@ -18,8 +18,6 @@
 start(Options) ->
   log4erl:conf("conf/log4erl.cfg"),
   
-  erobix:initialize(),
-  
   {DocRoot, Options1} = get_option(docroot, Options),
   
   Loop = fun (Req) ->
@@ -39,50 +37,53 @@ stop() ->
 loop(Req, DocRoot) ->
   try erobix_router:handle(Req, DocRoot) of
     {xml, XmlData} ->
-      Req:respond({200, [{"Content-Type", ?OBIX_MIME_TYPE}], XmlData});
+      respond(Req, XmlData);
     
     {error, bad_request} ->
-      % FIXME return 200 and obix error like obix:BadUriErr  or obix:UnsupportedErr
-      % <err href="http://testbed.tml.hut.fi/obix/" displayName="Write Error" display="Unable to read request input." xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://obix.org/ns/schema/1.0" xmlns="http://obix.org/ns/schema/1.0"></err>
-      Req:respond({400, [], "Bad Request"});
-    
-    {error, not_authorized} ->
-      % FIXME return 200 and obix error
-      Req:respond({401, [{"WWW-Authenticate", "Basic realm=\"eroBIX Server\""}], "Unauthorized"});
-    
-    {error, forbidden} ->
-      % FIXME return 200 and obix error obix:PermissionErr
-      Req:respond({403, [], "Forbidden"});
+      ?log_info("Bad Request: ~1024p", [Req]),
+      error(Req, "UnsupportedErr");
     
     {error, not_found} ->
-      Url = erobix_lib:get_url(Req),
-      ?log_info("Not Found: ~1024p", [Url]),
-      {xml, XmlData} = erobix_lib:build_xml_response(Url, err, [{is, "obix:BadUriErr"}, {displayName, "BadUriErr"}, {display, "Uri not found: " ++ Url}], []),
-      Req:respond({200, [{"Content-Type", ?OBIX_MIME_TYPE}], XmlData});
+      ?log_info("Not Found: ~1024p", [Req]),
+      error(Req, "BadUriErr");
+      
+    {error, forbidden} ->
+      ?log_info("Forbidden: ~1024p", [Req]),
+      error(Req, "PermissionErr");
     
     {error, Cause} ->
-      % FIXME return 200 and obix error
       ?log_info("~1024p: ~1024p", [Cause, Req]),
-      Req:respond({500, [], <<"Server error">>});
+      error(Req, "ServerErr");
       
     Other ->
-      % FIXME return 200 and obix error
       ?log_info("Unknown response type: ~1024p", [Other]),
-      Req:respond({500, [], <<"Server error">>})
+      error(Req, "ServerErr")
     
   catch
     Type:Reason ->
       ?log_error_with_stacktrace(Type, Reason,
                                  "processing request: ~4096p, Body: ~4096p",
                                  [Req, erlang:get(mochiweb_request_body)]),
-      % FIXME return 200 and obix error
-      Req:respond({500, [], <<"Server error">>})
+      error(Req, "ServerErr")
   end.
 
 %% Private functions
 get_option(Option, Options) ->
   {proplists:get_value(Option, Options), proplists:delete(Option, Options)}.
 
+respond(Req, XmlData) ->
+  Req:respond({200, [{"Content-Type", ?OBIX_MIME_TYPE}], XmlData}).
+
+error(Req, ErrorCode) ->
+  Url = erobix_lib:get_url(Req),
+  {xml, XmlData} = erobix_lib:build_xml_response(Url,
+                                                 err,
+                                                 [{is, "obix:" ++ ErrorCode},
+                                                  {displayName, ErrorCode},
+                                                  {display, ErrorCode ++ " for: " ++ Url}],
+                                                 []),
+  respond(Req, XmlData).
+  
 %%
 %% Tests
 %%

@@ -7,6 +7,7 @@
 %%%
 
 -define(OBIX_NAMESPACE, 'http://obix.org/ns/schema/1.0').
+-define(OBIX_NAMESPACE_STRING, "http://obix.org/ns/schema/1.0").
 -define(OBIX_BASE_PATH, "obix").
 -define(OBIX_MIME_TYPE, <<"text/xml">>).
 

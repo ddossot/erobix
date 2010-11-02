@@ -76,13 +76,29 @@ render_object_xml({url, RawRequestUrl}, {object, RawObject})
   
   export_xml(HrefedObject).
 
+render_object_xml({url, RawRequestUrl}, {object, RawObject}, {extent, ""})
+  when is_list(RawRequestUrl), is_record(RawObject, xmlElement) ->
+  
+  render_object_xml({url, RawRequestUrl}, {object, RawObject});
+
 render_object_xml({url, RawRequestUrl}, {object, RawObject}, {extent, RawExtent})
   when is_list(RawRequestUrl), is_record(RawObject, xmlElement), is_list(RawExtent) ->
   
-  [ChildObject | _] =
-    xmerl_xpath:string("//node()[@" ++ atom_to_list(?EXTENT_ATTRIBUTE_NAME) ++ "='" ++ RawExtent ++ "']", RawObject),
+  XPathResult =
+    xmerl_xpath:string("//node()[@"
+                         ++ atom_to_list(?EXTENT_ATTRIBUTE_NAME)
+                         ++ "='"
+                         ++ ensure_trailing_slash(RawExtent)
+                         ++ "']",
+                       RawObject),
   
-  render_object_xml({url, RawRequestUrl}, {object, ChildObject}).
+  case XPathResult of
+    [ChildObject | _] ->
+      render_object_xml({url, RawRequestUrl}, {object, ChildObject});
+      
+    _ ->
+      {error, not_found}
+  end.
 
 xml_zulu_timestamp() ->
   xml_zulu_format(erlang:universaltime()).
@@ -92,7 +108,9 @@ xml_zulu_boottime() ->
   BootTimeGSec = calendar:datetime_to_gregorian_seconds(erlang:universaltime()) - (UpTimeMillisec div 1000),
   xml_zulu_format(calendar:gregorian_seconds_to_datetime(BootTimeGSec)).
 
+%%
 %% Private functions
+%%
   
 find_all_extent_attributes(NormalizedObjectDoc) ->
   xmerl_xpath:string("//node()/@" ++ atom_to_list(?EXTENT_ATTRIBUTE_NAME), NormalizedObjectDoc).
@@ -100,7 +118,7 @@ find_all_extent_attributes(NormalizedObjectDoc) ->
 add_schema_attributes_if_needed(Attributes) when is_list(Attributes) ->
   Finder =
     fun(#xmlAttribute{name = Name, value = Value}) ->
-      Name =:= "xmlns" andalso Value =:= ?OBIX_NAMESPACE
+      Name =:= xmlns andalso Value =:= ?OBIX_NAMESPACE_STRING
     end,
     
   case lists:any(Finder, Attributes) of
@@ -305,13 +323,18 @@ render_object_xml_test() ->
     parse_object_xml({url, "http://testbed.tml.hut.fi/obix/test/TestDevice/"},
                      ObjectXml1),
   ?assertEqual(ObjectXml1, render_object_xml({url, "http://testbed.tml.hut.fi/obix/tg-at-tuas/1/"}, Object1)),
+  ?assertEqual(ObjectXml1, render_object_xml({url, "http://testbed.tml.hut.fi/obix/tg-at-tuas/1/"}, Object1, {extent, ""})),
   
   ObjectXml2 = {xml, "<?xml version=\"1.0\"?><obj href=\"http://testbed.tml.hut.fi/obix/tg-at-tuas/1/\" name=\"TestDevice\" displayName=\"Device for tests\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://obix.org/ns/schema/1.0\" xmlns=\"http://obix.org/ns/schema/1.0\"><enum name=\"conditionMode\" href=\"enum/\" displayName=\"Air Condition Mode\" val=\"homeDay\" writable=\"true\"><list href=\"range/\" is=\"obix:Range\"><obj name=\"homeDay\" displayName=\"At home: Day mode\"/></list></enum></obj>"},
   {Object2, _} =
     parse_object_xml({url, "http://testbed.tml.hut.fi/obix/test/TestDevice/"},
                      ObjectXml2),
-  ?assertEqual({xml, "<?xml version=\"1.0\"?><list href=\"http://testbed.tml.hut.fi/obix/tg-at-tuas/1/enum/range/\" is=\"obix:Range\"><obj name=\"homeDay\" displayName=\"At home: Day mode\"/></list>"},
+  ?assertEqual({xml, "<?xml version=\"1.0\"?><list xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://obix.org/ns/schema/1.0\" xmlns=\"http://obix.org/ns/schema/1.0\" href=\"http://testbed.tml.hut.fi/obix/tg-at-tuas/1/enum/range/\" is=\"obix:Range\"><obj name=\"homeDay\" displayName=\"At home: Day mode\"/></list>"},
                render_object_xml({url, "http://testbed.tml.hut.fi/obix/tg-at-tuas/1/enum/range/"}, Object2, {extent, "enum/range/"})),
+  ?assertEqual({xml, "<?xml version=\"1.0\"?><list xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://obix.org/ns/schema/1.0\" xmlns=\"http://obix.org/ns/schema/1.0\" href=\"http://testbed.tml.hut.fi/obix/tg-at-tuas/1/enum/range/\" is=\"obix:Range\"><obj name=\"homeDay\" displayName=\"At home: Day mode\"/></list>"},
+               render_object_xml({url, "http://testbed.tml.hut.fi/obix/tg-at-tuas/1/enum/range/"}, Object2, {extent, "enum/range"})),
+  ?assertEqual({error, not_found},
+               render_object_xml({url, "http://testbed.tml.hut.fi/obix/tg-at-tuas/1/enum/range/"}, Object2, {extent, "missing_extent"})),
   ok.
   
 ensure_trailing_slash_test() ->

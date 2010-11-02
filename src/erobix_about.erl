@@ -12,24 +12,29 @@
 -include_lib("xmerl/include/xmerl.hrl").
 -include("erobix.hrl").
 
--export([initialize/0]).
+-export([serve/2]).
 
-initialize() ->
-  % refresh the cached "about" object only if we're first in cluster
-  case erlang:nodes() of
-    [] ->
-      AboutXml = generate(),
-      {AboutObject, AboutExtents} = erobix_lib:parse_object_xml({url, "http://0.0.0.0:8888/obix/about"}, AboutXml),
-      erobix_store:store_object({storage_path, "about/"}, AboutObject, AboutExtents);
+serve(Req, Extent) ->
+  Method = Req:get(method),
+  
+  case Method of
+    'GET' ->
+      render(Req, Extent);
+
     _ ->
-      noop
-  end,
-  ok.
+      {error, bad_request}
+  end.
 
-generate() ->
+%% Private functions
+render(Req, Extent) ->
+  AboutXml = generate(),
+  Url = {url, erobix_lib:get_url(Req)},
+  {AboutObject, _} = erobix_lib:parse_object_xml(Url, AboutXml),
+  erobix_lib:render_object_xml(Url, AboutObject, Extent).
+
+generate() ->  
   erobix_lib:build_object_xml(obj, attributes(), children()).
 
-%% Private function
 attributes() ->
   [{is, "obix:About"}, {display, "Obix About"}].
   
@@ -44,9 +49,8 @@ children() ->
    {str, [{name, "productVersion"}, {val, Version}, {href, "productVersion/"}, {displayName, "Product Version"}], []},
    {uri, [{name, "vendorUrl"}, {val, "http://consulting.dossot.net"}, {href, "vendorUrl/"}, {displayName, "Vendor Url"}], []},
    {uri, [{name, "productUrl"}, {val, "http://github.net/ddossot/erobix"}, {href, "productUrl/"}, {displayName, "Product Url"}], []},
-   % FIXME generate real time
-   {abstime, [{name, "serverTime"}, {null, "true"}, {href, "serverTime/"}, {displayName, "Server Time"}], []},
-   {abstime, [{name, "serverBootTime"}, {val, erobix_lib:xml_zulu_timestamp()}, {href, "serverBootTime/"}, {displayName, "Server Boot Time"}], []}
+   {abstime, [{name, "serverTime"}, {val, erobix_lib:xml_zulu_timestamp()}, {href, "serverTime/"}, {displayName, "Server Time"}], []},
+   {abstime, [{name, "serverBootTime"}, {val, erobix_lib:xml_zulu_boottime()}, {href, "serverBootTime/"}, {displayName, "Server Boot Time"}], []}
   ].
 
 

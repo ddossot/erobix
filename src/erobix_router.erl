@@ -34,8 +34,10 @@ handle_obix(Req, PathElements) ->
     [] ->
       erobix_lobby:serve(Req);
       
-    ["about" | _] ->
-      % FIXME about should not be cached
+    ["about" | RawExtent] ->
+      erobix_about:serve(Req, {extent, string:join(RawExtent, "/")});
+
+    ["object" | _] ->
       % FIXME extract / refactor this, which should be handled by the index server
       case Req:get(method) of
         'GET' ->
@@ -51,7 +53,7 @@ handle_obix(Req, PathElements) ->
             Error ->
               Error
           end;
-          
+     % FIXME support authenticated PUT for creating new objects
         _ ->
           {error, bad_request}
       end;

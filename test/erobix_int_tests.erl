@@ -34,11 +34,22 @@ unauthenticated_tests() ->
 
 bad_uri_err() ->
   etap:msg("\nBad Uri Err Tests"),
-  BadUrl = ?OBIX_SERVER_URL ++ "/_bad_uri_/",
-  Result = ibrowse:send_req(BadUrl, [], get),
-  BarUriErrDom = ensure_valid_obix_response(Result),
-  ensure_href(BadUrl, BarUriErrDom),
-  ensure_obj_of_type("err", "obix:BadUriErr", BarUriErrDom),
+  bad_uri_err(?OBIX_SERVER_URL ++ "/_bad_uri_/"),
+  ok.
+  
+bad_uri_err(ErrUrl) ->
+  err(ErrUrl, "obix:BadUriErr", 'get'),
+  ok.
+  
+bad_method_err(ErrUrl) ->
+  err(ErrUrl, "obix:UnsupportedErr", delete),
+  ok.
+  
+err(ErrUrl, ErrCode, HttpMethod) ->
+  Result = ibrowse:send_req(ErrUrl, [], HttpMethod),
+  ErrUrlDom = ensure_valid_obix_response(Result),
+  ensure_href(ErrUrl, ErrUrlDom),
+  ensure_obj_of_type("err", ErrCode, ErrUrlDom),
   ok.
   
 get_lobby() ->
@@ -52,6 +63,8 @@ get_lobby() ->
   {_, _, [AboutRef]} = LobbyDom,
   ensure_href("about/", AboutRef),
   ensure_obj_of_type("ref", "obix:About", AboutRef),
+  
+  bad_method_err(LobbyUrl),
   ok.
 
 get_about() ->
@@ -73,6 +86,9 @@ get_about() ->
   ensure_href(ObixVersionUrl, ObixVersionDom),
   ensure_obj_of_type("str", ObixVersionDom),
   ensure_value("1.0", ObixVersionDom),
+  
+  bad_method_err(AboutUrl),
+  bad_uri_err(AboutUrl ++ "bad_extent/"),
   ok.
 
 ensure_valid_obix_response({_, _, Headers, Body}) ->
