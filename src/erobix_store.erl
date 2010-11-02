@@ -22,9 +22,15 @@ store_object(StoragePath = {storage_path, RawStoragePath},
              Extents = {extents, RawExtents})
   when is_list(RawStoragePath), is_list(RawExtents), is_record(RawObject, xmlElement) ->
   
-  % drop the object first, as this function is about recreating an object not mutating its state
-  delete_object(StoragePath),
-  
+  case get_object(StoragePath) of
+    {error, not_found} ->
+      do_store_object(StoragePath, Object, Extents);
+      
+    _ ->
+      {error, already_existing}
+  end.
+      
+do_store_object({storage_path, RawStoragePath}, Object, Extents = {extents, RawExtents}) ->
   RawStoragePathBin = list_to_binary(RawStoragePath),
   C = erldis_client(),
   
@@ -97,7 +103,7 @@ get_object({{storage_path_ref, RawStoragePath}, Extent = {extent, RawExtent}}, C
 get_object(_, _) ->
   {error, invalid_storage_layout}.
 
-%% TODO update_object (get values only)
+%% TODO update_object (writable values only)
 
 %% Private functions
 erldis_client() ->
