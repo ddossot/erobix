@@ -29,11 +29,13 @@ attributes() ->
   [{is, "obix:Lobby"}].
   
 children() ->
-  % TODO add objects ref
   % TODO add createObject op
   % TODO add findObjects op
   % TODO add batch op
   % TODO add watchService ref
   % TODO add alarms ref
-  [{ref, [{name, "about"}, {href, "about/"}, {is, "obix:About"}], []}].
+  [
+   {ref, [{name, "about"}, {href, "about/"}, {is, "obix:About"}], []},
+   {ref, [{name, "objects"}, {href, "objects/"}, {display, "Managed objects"}], []}
+  ].
 

@@ -13,10 +13,24 @@
 -include("erobix.hrl").
 -define(SERVER, ?MODULE).
 
--export([start_link/0]).
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+-export([serve/2]).
+-export([start_link/0, init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -record(state, {}).
+
+serve(Req, StoragePath = {storage_path, RawStoragePath}) when is_list(RawStoragePath) ->
+  Method = Req:get(method),
+  
+  case Method of
+    'GET' when RawStoragePath =:= "" ->
+      list_all_objects(Req);
+
+    'GET' when RawStoragePath =/= "" ->
+      get_object(Req, StoragePath);
+
+    _ ->
+      {error, bad_request}
+  end.
 
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?SERVER, [], []).
@@ -53,4 +67,21 @@ terminate(Reason, _State) ->
 code_change(_OldVsn, State, _Extra) ->
     ?unexpected_call(code_change, [_OldVsn, _Extra]),
     {ok, State}.
+
+%% Private functions
+list_all_objects(Req) ->
+  % FIXME implement: call erobix_store:get_all_objects() and render_object_as_ref_xml(Url, Object)
+  ok.
+
+get_object(Req, StoragePath) ->
+  case erobix_store:get_object(StoragePath) of
+    Object = {object, _} ->
+      erobix_lib:render_object_xml({url, erobix_lib:get_url(Req)}, Object);
+      
+    {Object = {object, _}, Extent = {extent, _}} ->
+      erobix_lib:render_object_xml({url, erobix_lib:get_url(Req)}, Object, Extent);
+      
+    Error ->
+      Error
+  end.
 

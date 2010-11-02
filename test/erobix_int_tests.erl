@@ -60,9 +60,13 @@ get_lobby() ->
   ensure_href(LobbyUrl, LobbyDom),
   ensure_obj_of_type("obj", "obix:Lobby", LobbyDom),
   
-  {_, _, [AboutRef]} = LobbyDom,
+  {_, _, [AboutRef, ObjectsRef]} = LobbyDom,
+  
   ensure_href("about/", AboutRef),
   ensure_obj_of_type("ref", "obix:About", AboutRef),
+  
+  ensure_href("objects/", ObjectsRef),
+  ensure_obj_of_type("ref", ObjectsRef),
   
   bad_method_err(LobbyUrl),
   ok.
@@ -91,6 +95,8 @@ get_about() ->
   bad_uri_err(AboutUrl ++ "bad_extent/"),
   ok.
 
+% TODO test /objects
+  
 ensure_valid_obix_response({_, _, Headers, Body}) ->
   etap:is(proplists:get_value("Content-Type", Headers),
           "text/xml",

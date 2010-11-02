@@ -38,27 +38,8 @@ handle_obix(Req, PathElements) ->
       erobix_about:serve(Req, {extent, string:join(RawExtent, "/")});
 
     ["objects" | _] ->
-      % FIXME extract / refactor this, which should be handled by the object manager server
-      % FIXME support get all objects a refs
-      case Req:get(method) of
-        'GET' ->
-          StoragePath = {storage_path, string:join(PathElements, "/")},
-          io:format("~n~1024p~n", [StoragePath]),
-          
-          case erobix_store:get_object(StoragePath) of
-            Object = {object, _} ->
-              erobix_lib:render_object_xml({url, erobix_lib:get_url(Req)}, Object);
-              
-            {Object = {object, _}, Extent = {extent, _}} ->
-              erobix_lib:render_object_xml({url, erobix_lib:get_url(Req)}, Object, Extent);
-              
-            Error ->
-              Error
-          end;
-     
-        _ ->
-          {error, bad_request}
-      end;
+      StoragePath = {storage_path, string:join(PathElements, "/")},
+      erobix_object_manager:serve(Req, StoragePath);
       
     _ ->
       {error, not_found}
