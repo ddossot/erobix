@@ -29,6 +29,11 @@ attributes() ->
   [{is, "obix:Lobby"}].
   
 children() ->
-  % FIXME finish to implement
+  % TODO add objects ref
+  % TODO add createObject op
+  % TODO add findObjects op
+  % TODO add batch op
+  % TODO add watchService ref
+  % TODO add alarms ref
   [{ref, [{name, "about"}, {href, "about/"}, {is, "obix:About"}], []}].
 

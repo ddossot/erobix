@@ -31,7 +31,7 @@ store_object(StoragePath = {storage_path, RawStoragePath},
   end.
       
 do_store_object({storage_path, RawStoragePath}, Object, Extents = {extents, RawExtents}) ->
-  RawStoragePathBin = list_to_binary(RawStoragePath),
+  RawStoragePathBin = list_to_binary(erobix_lib:ensure_trailing_slash(RawStoragePath)),
   C = erldis_client(),
   
   % store the object itself at its main storage path location
@@ -55,7 +55,7 @@ do_store_object({storage_path, RawStoragePath}, Object, Extents = {extents, RawE
 
 delete_object({storage_path, RawStoragePath}) when is_list(RawStoragePath) ->
   % TODO drop point history and watches 
-  RawStoragePathBin = list_to_binary(RawStoragePath),
+  RawStoragePathBin = list_to_binary(erobix_lib:ensure_trailing_slash(RawStoragePath)),
   C = erldis_client(),
   
   erldis:hdel(C, ?OBJECT_INDEX, RawStoragePathBin),
@@ -82,7 +82,7 @@ get_object(StoragePath = {storage_path, RawStoragePath}) when is_list(RawStorage
   get_object(StoragePath, erldis_client()).
   
 get_object({storage_path, RawStoragePath}, C) when is_list(RawStoragePath) ->
-  RawStoragePathBin = list_to_binary(RawStoragePath),
+  RawStoragePathBin = list_to_binary(erobix_lib:ensure_trailing_slash(RawStoragePath)),
 
   case erldis:hget(C, ?OBJECT_INDEX, RawStoragePathBin) of
     nil ->

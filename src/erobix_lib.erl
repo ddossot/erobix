@@ -12,10 +12,8 @@
 -include_lib("xmerl/include/xmerl.hrl").
 -include("erobix.hrl").
 
--define(SCHEMA_ATTRIBUTES,
-          [{'xmlns:xsi', "http://www.w3.org/2001/XMLSchema-instance"},
-           {'xsi:schemaLocation', ?OBIX_NAMESPACE},
-           {xmlns, ?OBIX_NAMESPACE}]).
+% optional: {'xmlns:xsi', "http://www.w3.org/2001/XMLSchema-instance"}, {'xsi:schemaLocation', ?OBIX_NAMESPACE},
+-define(SCHEMA_ATTRIBUTES, [{xmlns, ?OBIX_NAMESPACE}]).
 
 -define(HREF_ATTRIBUTE_NAME, href).
 -define(EXTENT_ATTRIBUTE_NAME, '_extent').
@@ -329,9 +327,9 @@ render_object_xml_test() ->
   {Object2, _} =
     parse_object_xml({url, "http://testbed.tml.hut.fi/obix/test/TestDevice/"},
                      ObjectXml2),
-  ?assertEqual({xml, "<?xml version=\"1.0\"?><list xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://obix.org/ns/schema/1.0\" xmlns=\"http://obix.org/ns/schema/1.0\" href=\"http://testbed.tml.hut.fi/obix/tg-at-tuas/1/enum/range/\" is=\"obix:Range\"><obj name=\"homeDay\" displayName=\"At home: Day mode\"/></list>"},
+  ?assertEqual({xml, "<?xml version=\"1.0\"?><list xmlns=\"http://obix.org/ns/schema/1.0\" href=\"http://testbed.tml.hut.fi/obix/tg-at-tuas/1/enum/range/\" is=\"obix:Range\"><obj name=\"homeDay\" displayName=\"At home: Day mode\"/></list>"},
                render_object_xml({url, "http://testbed.tml.hut.fi/obix/tg-at-tuas/1/enum/range/"}, Object2, {extent, "enum/range/"})),
-  ?assertEqual({xml, "<?xml version=\"1.0\"?><list xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://obix.org/ns/schema/1.0\" xmlns=\"http://obix.org/ns/schema/1.0\" href=\"http://testbed.tml.hut.fi/obix/tg-at-tuas/1/enum/range/\" is=\"obix:Range\"><obj name=\"homeDay\" displayName=\"At home: Day mode\"/></list>"},
+  ?assertEqual({xml, "<?xml version=\"1.0\"?><list xmlns=\"http://obix.org/ns/schema/1.0\" href=\"http://testbed.tml.hut.fi/obix/tg-at-tuas/1/enum/range/\" is=\"obix:Range\"><obj name=\"homeDay\" displayName=\"At home: Day mode\"/></list>"},
                render_object_xml({url, "http://testbed.tml.hut.fi/obix/tg-at-tuas/1/enum/range/"}, Object2, {extent, "enum/range"})),
   ?assertEqual({error, not_found},
                render_object_xml({url, "http://testbed.tml.hut.fi/obix/tg-at-tuas/1/enum/range/"}, Object2, {extent, "missing_extent"})),
@@ -354,9 +352,9 @@ ensure_leading_slash_test() ->
   ok.
 
 build_object_xml_test() ->
-  ?assertEqual({xml, "<?xml version=\"1.0\"?><obj xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://obix.org/ns/schema/1.0\" xmlns=\"http://obix.org/ns/schema/1.0\"/>"},
+  ?assertEqual({xml, "<?xml version=\"1.0\"?><obj xmlns=\"http://obix.org/ns/schema/1.0\"/>"},
                build_object_xml(obj, [], [])),
-  ?assertEqual({xml, "<?xml version=\"1.0\"?><obj xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://obix.org/ns/schema/1.0\" xmlns=\"http://obix.org/ns/schema/1.0\"/>"},
+  ?assertEqual({xml, "<?xml version=\"1.0\"?><obj xmlns=\"http://obix.org/ns/schema/1.0\"/>"},
                build_object_xml(obj, [], [])),
   ok.
 
