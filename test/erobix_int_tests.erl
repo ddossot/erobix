@@ -95,7 +95,7 @@ get_about() ->
   bad_uri_err(AboutUrl ++ "bad_extent/"),
   ok.
 
-% TODO test /objects
+% TODO test /objects then get one object and its extents
   
 ensure_valid_obix_response({_, _, Headers, Body}) ->
   etap:is(proplists:get_value("Content-Type", Headers),

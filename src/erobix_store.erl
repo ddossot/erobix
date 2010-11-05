@@ -118,7 +118,9 @@ get_all_objects(C, [RawStoragePathBin|Rest], Acc) ->
       get_all_objects(C, Rest, Acc);
 
     SerializedData ->
-      get_all_objects(C, Rest, [binary_to_term(SerializedData) | Acc])
+      get_all_objects(C,
+                      Rest,
+                      [{{storage_path, binary_to_list(RawStoragePathBin)}, binary_to_term(SerializedData)} | Acc])
   end.
   
 %% TODO update_object (writable values only)

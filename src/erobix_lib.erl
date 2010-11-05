@@ -19,7 +19,8 @@
 -define(EXTENT_ATTRIBUTE_NAME, '_extent').
 
 -export([get_url/1, ensure_trailing_slash/1, build_xml_response/4, export_xml/1,
-         build_object_xml/3, parse_object_xml/2, render_object_xml/2, render_object_xml/3,
+         build_object_xml/3, parse_object_xml/2, get_object_names/1,
+         render_object_xml/2, render_object_xml/3,
          xml_zulu_timestamp/0, xml_zulu_boottime/0]).
 
 get_url(Req) ->
@@ -59,6 +60,10 @@ parse_object_xml({url, RawRequestUrl}, {xml, RawObjectXml})
   Extents = [Value || #xmlAttribute{value = Value} <- find_all_extent_attributes(NormalizedObjectDoc)],
   {{object, NormalizedObjectDoc}, {extents, Extents}}.
 
+get_object_names({object, RawObject}) when is_record(RawObject, xmlElement) ->
+  NameAttributes = xmerl_xpath:string("/node()/@name | /node()/@displayName", RawObject),
+  [{Name, Value} || #xmlAttribute{name=Name, value=Value} <- NameAttributes].
+  
 render_object_xml({url, RawRequestUrl}, {object, RawObject})
   when is_list(RawRequestUrl), is_record(RawObject, xmlElement) ->
   
@@ -314,7 +319,21 @@ parse_object_xml_test() ->
                export_xml(RawObject3)),
   ?assertEqual(["enum/", "enum/range/"], RawExtents3),
   ok.
-
+  
+get_object_names_test() ->
+  {Object1, _} =
+    parse_object_xml({url, "http://testbed.tml.hut.fi/obix/test/TestDevice/"},
+                     {xml, "<?xml version='1.0' encoding='UTF-8'?><obj name='TestDevice' href='http://testbed.tml.hut.fi/obix/test/TestDevice/' displayName='Device for tests' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' xsi:schemaLocation='http://obix.org/ns/schema/1.0' xmlns='http://obix.org/ns/schema/1.0'><enum name='conditionMode' href='http://testbed.tml.hut.fi/obix/test/TestDevice/enum/' displayName='Air Condition Mode' val='homeDay' writable='true'><list href='http://testbed.tml.hut.fi/obix/test/TestDevice/enum/range/' is='obix:Range'><obj name='homeDay' displayName='At home: Day mode'></obj></list></enum></obj>"}),
+  ObjectNames = get_object_names(Object1),
+  ?assertEqual("TestDevice", proplists:get_value(name, ObjectNames)),
+  ?assertEqual("Device for tests", proplists:get_value(displayName, ObjectNames)),
+  
+  {Object2, _} =
+    parse_object_xml({url, "http://data/foo"},
+                     {xml, "<?xml version=\"1.0\"?><obj href=\"/foo/bar\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://obix.org/ns/schema/1.0\" xmlns=\"http://obix.org/ns/schema/1.0\"/>"}),
+  ?assertEqual([], get_object_names(Object2)),
+  ok.
+  
 render_object_xml_test() ->
   ObjectXml1 = {xml, "<?xml version=\"1.0\"?><obj href=\"http://testbed.tml.hut.fi/obix/tg-at-tuas/1/\" name=\"TestDevice\" displayName=\"Device for tests\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://obix.org/ns/schema/1.0\" xmlns=\"http://obix.org/ns/schema/1.0\"><enum name=\"conditionMode\" href=\"enum/\" displayName=\"Air Condition Mode\" val=\"homeDay\" writable=\"true\"><list href=\"range/\" is=\"obix:Range\"><obj name=\"homeDay\" displayName=\"At home: Day mode\"/></list></enum></obj>"},
   {Object1, _} =

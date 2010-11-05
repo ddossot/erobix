@@ -22,7 +22,7 @@ serve(Req, StoragePath = {storage_path, RawStoragePath}) when is_list(RawStorage
   Method = Req:get(method),
   
   case Method of
-    'GET' when RawStoragePath =:= "" ->
+    'GET' when RawStoragePath =:= "objects" ->
       list_all_objects(Req);
 
     'GET' when RawStoragePath =/= "" ->
@@ -70,8 +70,17 @@ code_change(_OldVsn, State, _Extra) ->
 
 %% Private functions
 list_all_objects(Req) ->
-  % FIXME implement: call erobix_store:get_all_objects() and render_object_as_ref_xml(Url, Object)
-  ok.
+  % FIXME turn this into a gen_server function
+  % trim "objects/" out of storage path
+  ObjectRefs =
+    [{ref, [{href, string:substr(RawStoragePath, 9)} | erobix_lib:get_object_names(Object)], []}
+     || {{storage_path, RawStoragePath}, Object} <- erobix_store:get_all_objects()],
+     
+  Url = erobix_lib:get_url(Req),
+  erobix_lib:build_xml_response(Url,
+                                list,
+                                [{displayName, "Object List"}, {'of', "obix:ref"}],
+                                ObjectRefs).
 
 get_object(Req, StoragePath) ->
   case erobix_store:get_object(StoragePath) of
