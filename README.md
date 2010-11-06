@@ -10,3 +10,14 @@ _  _ \_  ___/  / / /_  __  |__  / __    /
 Erlang Obix Server
 ==================
 
+
+TODO
+----
+
+- Inheritance flattening (6.6.1)
+- Batch (10.5)
+- Watches (12)
+- Points (13)
+- History (14)
+- Alarming (15)
+

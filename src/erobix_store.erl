@@ -12,130 +12,52 @@
 -include_lib("xmerl/include/xmerl.hrl").
 -include("erobix.hrl").
 
--export([store_object/3, delete_object/1,
-         get_object/1, get_all_objects/0]).
+-export([store_object_def/3, get_object_def/1, get_all_object_defs/0]).
 
--define(OBJECT_INDEX, <<"object_index">>).
--define(OBJECT_LOCATIONS, <<"object_locations">>).
+-define(OBJECT_DEFS, <<"object_defs">>).
 
-store_object(StoragePath = {storage_path, RawStoragePath},
-             Object = {object, RawObject},
-             Extents = {extents, RawExtents})
-  when is_list(RawStoragePath), is_list(RawExtents), is_record(RawObject, xmlElement) ->
+store_object_def(ServerUrl = {url, RawServerUrl},
+                 StoragePath = {storage_path, RawStoragePath},
+                 ObjectXml = {xml, RawObjectXml})
+  when is_list(RawServerUrl), is_list(RawStoragePath), is_list(RawObjectXml) ->
+
+  RawServerUrlS = erobix_lib:ensure_trailing_slash(RawServerUrl),
+  RawStoragePathS = erobix_lib:ensure_trailing_slash(RawStoragePath),
   
-  case get_object(StoragePath) of
-    {error, not_found} ->
-      do_store_object(StoragePath, Object, Extents);
-      
-    _ ->  
-      {error, already_existing}
-  end.
-      
-do_store_object({storage_path, RawStoragePath}, Object, Extents = {extents, RawExtents}) ->
-  RawStoragePathBin = list_to_binary(erobix_lib:ensure_trailing_slash(RawStoragePath)),
-  C = erldis_client(),
+  {xml, RawNormalizedObjectXml} =
+    erobix_lib:normalize_object_xml({url, RawServerUrlS ++ RawStoragePathS}, ObjectXml),
   
-  % store the object itself at its main storage path location
-  erldis:hset(C, ?OBJECT_INDEX, RawStoragePathBin, term_to_binary(Object)),
-  
-  % map all extents StoragePath
-  lists:foreach(
-    fun(RawExtent) ->
-      RawExtentBin = list_to_binary(RawExtent),
-      erldis:hset(C,
-                  ?OBJECT_INDEX,
-                  <<RawStoragePathBin/binary, RawExtentBin/binary>>,
-                  term_to_binary({{storage_path_ref, RawStoragePath}, {extent, RawExtent}}))
-    end,
-    RawExtents),
-  
-  % add the object location to the global set (so objects can be enumerated)
-  erldis:hset(C, ?OBJECT_LOCATIONS, RawStoragePathBin, term_to_binary(Extents)),
-    
+  erldis:hset(erldis_client(),
+              ?OBJECT_DEFS,
+              list_to_binary(RawStoragePathS),
+              list_to_binary(RawNormalizedObjectXml)),
   ok.
 
-delete_object({storage_path, RawStoragePath}) when is_list(RawStoragePath) ->
-  % TODO drop point history and watches 
-  RawStoragePathBin = list_to_binary(erobix_lib:ensure_trailing_slash(RawStoragePath)),
-  C = erldis_client(),
-  
-  erldis:hdel(C, ?OBJECT_INDEX, RawStoragePathBin),
-  
-  case erldis:hget(C, ?OBJECT_LOCATIONS, RawStoragePathBin) of
-    nil ->
-      noop;
-      
-    SerializedExtents ->
-      {extents, RawExtents} = binary_to_term(SerializedExtents),
-      
-      lists:foreach(
-        fun(RawExtent) ->
-          RawExtentBin = list_to_binary(RawExtent),
-          erldis:hdel(C, ?OBJECT_INDEX, <<RawStoragePathBin/binary, RawExtentBin/binary>>)
-        end,
-        RawExtents),
-      
-      erldis:hdel(C, ?OBJECT_LOCATIONS, RawStoragePathBin)
-  end,
-  ok.
+% TODO delete_object_def, dropping history and watches 
 
-get_object(StoragePath = {storage_path, RawStoragePath}) when is_list(RawStoragePath) ->
-  get_object(StoragePath, erldis_client()).
-  
-get_object({storage_path, RawStoragePath}, C) when is_list(RawStoragePath) ->
+get_object_def(StoragePath = {storage_path, RawStoragePath}) when is_list(RawStoragePath) ->
   RawStoragePathBin = list_to_binary(erobix_lib:ensure_trailing_slash(RawStoragePath)),
-
-  case retrieve_object(C, RawStoragePathBin) of
+  
+  case erldis:hget(erldis_client(), ?OBJECT_DEFS, RawStoragePathBin) of
     nil ->
       {error, not_found};
 
-    SerializedData ->
-      get_object(binary_to_term(SerializedData), C)
-  end;
-
-get_object(Object = {object, _}, _) ->
-  Object;
-
-get_object({{storage_path_ref, RawStoragePath}, Extent = {extent, RawExtent}}, C)
-  when is_list(RawStoragePath), is_list(RawExtent) ->
-  
-  {get_object({storage_path, RawStoragePath}, C), Extent};
-
-get_object(_, _) ->
-  {error, invalid_storage_layout}.
-  
-get_all_objects() ->
-  C = erldis_client(),
-  RawStoragePathsBin = erldis:hkeys(C, ?OBJECT_LOCATIONS),
-  get_all_objects(C, RawStoragePathsBin, []).
-  
-get_all_objects(_, [], Acc) ->
-  lists:reverse(Acc);
-
-get_all_objects(C, [RawStoragePathBin|Rest], Acc) ->
-  case retrieve_object(C, RawStoragePathBin) of
-    nil ->
-      get_all_objects(C, Rest, Acc);
-
-    SerializedData ->
-      get_all_objects(C,
-                      Rest,
-                      [{{storage_path, binary_to_list(RawStoragePathBin)}, binary_to_term(SerializedData)} | Acc])
+    RawObjectBin ->
+      {xml, binary_to_list(RawObjectBin)}
   end.
   
-%% TODO update_object (writable values only)
+get_all_object_defs() ->
+  get_all_object_defs(erldis:hgetall(erldis_client(), ?OBJECT_DEFS), []).
+  
+get_all_object_defs([], Acc) ->
+  lists:reverse(Acc);
+
+get_all_object_defs([{RawStoragePathBin, RawObjectBin}|Rest], Acc) ->
+  get_all_object_defs(
+    Rest,
+    [{{storage_path, binary_to_list(RawStoragePathBin)}, {xml, binary_to_list(RawObjectBin)}} | Acc]).
 
 %% Private functions
 erldis_client() ->
   erldis_sup:client().
-  
-retrieve_object(C, RawStoragePathBin) when is_binary(RawStoragePathBin) ->
-  erldis:hget(C, ?OBJECT_INDEX, RawStoragePathBin).
 
-%%
-%% Tests
-%%
--include_lib("eunit/include/eunit.hrl").
--ifdef(TEST).
-
--endif.
