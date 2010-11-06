@@ -24,11 +24,11 @@
          xml_zulu_timestamp/0, xml_zulu_boottime/0]).
 
 get_url(Req) ->
-  ensure_trailing_slash(mochiweb_util:urlunsplit({atom_to_list(Req:get(scheme)),
-                                                  Req:get_header_value("host"),
-                                                  Req:get(path),
-                                                  "",
-                                                  ""})).
+  {url, ensure_trailing_slash(mochiweb_util:urlunsplit({atom_to_list(Req:get(scheme)),
+                                                       Req:get_header_value("host"),
+                                                       Req:get(path),
+                                                       "",
+                                                       ""}))}.
 
 ensure_trailing_slash(Url) when is_list(Url) ->
   lists:reverse(ensure_leading_slash(lists:reverse(Url))).
@@ -36,10 +36,10 @@ ensure_trailing_slash(Url) when is_list(Url) ->
 export_xml(Document) ->
   {xml, lists:flatten(xmerl:export_simple([Document], xmerl_xml))}.
 
-build_xml_response(Url, ElementName, Attributes, Children)
-  when is_list(Url), is_atom(ElementName), is_list(Attributes), is_list(Children) ->
+build_xml_response({url, RawRequestUrl}, ElementName, Attributes, Children)
+  when is_list(RawRequestUrl), is_atom(ElementName), is_list(Attributes), is_list(Children) ->
   
-  build_object_xml(ElementName, [ {?HREF_ATTRIBUTE_NAME, ensure_trailing_slash(Url)} | Attributes], Children);
+  build_object_xml(ElementName, [ {?HREF_ATTRIBUTE_NAME, ensure_trailing_slash(RawRequestUrl)} | Attributes], Children);
   
 build_xml_response(Req, ElementName, Attributes, Children)
   when is_atom(ElementName), is_list(Attributes), is_list(Children) ->
@@ -61,7 +61,6 @@ normalize_object_xml({url, RawRequestUrl}, {xml, RawObjectXml})
 
 % @doc Object XML definition must have been normalized before calling this!
 parse_object_xml({xml, RawObjectXml}) when is_list(RawObjectXml) ->
-  
   {ObjectDoc, _} = xmerl_scan:string(RawObjectXml),
   Extents = [Value || #xmlAttribute{value = Value} <- find_all_extent_attributes(ObjectDoc)],
   {{object, ObjectDoc}, {extents, Extents}}.

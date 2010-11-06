@@ -6,6 +6,7 @@
 %%% Copyright (c) 2010 David Dossot
 %%%
 
+% FIXME rename to erobix_object_server
 -module(erobix_object_manager).
 -author('David Dossot <david@dossot.net>').
 
@@ -13,35 +14,71 @@
 -include("erobix.hrl").
 -define(SERVER, ?MODULE).
 
--export([serve/2]).
--export([start_link/0, init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+-export([start_link/0, serve/2]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--record(state, {objects}).
+-record(state, {objects_and_refs_dict}).
 
-serve(Req, StoragePath = {storage_path, RawStoragePath}) when is_list(RawStoragePath) ->
+start_link() ->
+    gen_server:start_link({local, ?SERVER}, ?SERVER, [], []).
+
+serve(Req, {storage_path, RawStoragePath}) when is_list(RawStoragePath) ->
   Method = Req:get(method),
+  Url = erobix_lib:get_url(Req),
   
   case Method of
     'GET' when RawStoragePath =:= "objects" ->
-      list_all_objects(Req);
+      gen_server:call(?SERVER, {list_all_objects, Url});
 
     'GET' when RawStoragePath =/= "" ->
-      get_object(Req, StoragePath);
+      gen_server:call(?SERVER,
+                      {get_object,
+                       Url,
+                       {storage_path, erobix_lib:ensure_trailing_slash(RawStoragePath)}
+                      });
 
     _ ->
       {error, bad_request}
   end.
 
-start_link() ->
-    gen_server:start_link({local, ?SERVER}, ?SERVER, [], []).
-
 %% Server functions
 init([]) ->
   AllObjectDefs = erobix_store:get_all_object_defs(),
-  Objects = parse_object_defs(AllObjectDefs),
+  ObjectsAndRefsDict = parse_object_defs(AllObjectDefs),
   ?log_info("started with ~p object definitions", [length(AllObjectDefs)]),
-  {ok, #state{objects=Objects}}.
+  {ok, #state{objects_and_refs_dict=ObjectsAndRefsDict}}.
 
+handle_call({get_object, Url, StoragePath}, _From, State = #state{objects_and_refs_dict=ObjectsAndRefsDict}) ->
+  Response =
+    case get_object(StoragePath, ObjectsAndRefsDict) of
+      Object = {object, _} ->
+        erobix_lib:render_object_xml(Url, Object);
+        
+      {Object = {object, _}, Extent = {extent, _}} ->
+        erobix_lib:render_object_xml(Url, Object, Extent);
+        
+      Error = {error, _} ->
+        Error;
+      
+      Other ->
+        ?log_error("Unexpected get_object result: ~1024p", [Other]),
+        {error, server_error}
+    end,
+    
+  {reply, Response, State};
+
+handle_call({list_all_objects, Url}, _From, State = #state{objects_and_refs_dict=ObjectsAndRefsDict}) ->
+  ObjectRefs =
+    [{ref, [{href, rel_url(RawStoragePath)} | erobix_lib:get_object_names(Object)], []}
+     || {{storage_path, RawStoragePath}, Object} <- only_objects(ObjectsAndRefsDict)],
+     
+  Response =
+    erobix_lib:build_xml_response(Url,
+                                  list,
+                                  [{displayName, "Object List"}, {'of', "obix:ref"}],
+                                  ObjectRefs),
+  {reply, Response, State};
+  
 handle_call(_Request, _From, State) ->
   ?unexpected_call(handle_call, [_Request, _From]),
   {reply, {error, {no_matching_handle_call_clause, _Request}}, State}.
@@ -83,37 +120,37 @@ parse_object_defs([{StoragePath = {storage_path, RawStoragePath}, ObjectXml}|Res
     lists:foldl(
       fun(RawExtent, Acc) ->
         dict:store({storage_path, RawStoragePath ++ RawExtent},
-                   {storage_path_ref, RawStoragePath},
+                   {storage_path_ref, RawExtent, RawStoragePath},
                    Acc)
       end,
       dict:store(StoragePath, Object, Objects),
       RawExtents),
   
-  % FIXME put refs from extents
   parse_object_defs(Rest, NewObjects).
 
-list_all_objects(Req) ->
-  % FIXME turn this into a gen_server function
-  % trim "objects/" out of storage path
-  ObjectRefs =
-    [{ref, [{href, string:substr(RawStoragePath, 9)} | erobix_lib:get_object_names(Object)], []}
-     || {{storage_path, RawStoragePath}, Object} <- erobix_store:get_all_objects()],
-     
-  Url = erobix_lib:get_url(Req),
-  erobix_lib:build_xml_response(Url,
-                                list,
-                                [{displayName, "Object List"}, {'of', "obix:ref"}],
-                                ObjectRefs).
+only_objects(ObjectsAndRefsDict) ->
+  only_objects(dict:to_list(ObjectsAndRefsDict), []).
+only_objects([], Result) ->
+  Result;
+only_objects([SP_O = {_, {object, _}}|Rest], Result) ->
+  only_objects(Rest, [SP_O | Result]);
+only_objects([_|Rest], Result) ->
+  only_objects(Rest, Result).
 
-get_object(Req, StoragePath) ->
-  case erobix_store:get_object(StoragePath) of
-    Object = {object, _} ->
-      erobix_lib:render_object_xml({url, erobix_lib:get_url(Req)}, Object);
-      
-    {Object = {object, _}, Extent = {extent, _}} ->
-      erobix_lib:render_object_xml({url, erobix_lib:get_url(Req)}, Object, Extent);
-      
-    Error ->
-      Error
+get_object(StoragePath, ObjectsAndRefsDict) ->
+  case dict:find(StoragePath, ObjectsAndRefsDict) of
+    error ->
+      {error, not_found};
+    
+    {ok, {storage_path_ref, RawExtent, RawStoragePath}} ->
+      {get_object({storage_path, RawStoragePath}, ObjectsAndRefsDict), {extent, RawExtent}};
+    
+    {ok, Object} ->
+      Object
   end.
 
+rel_url(RawStoragePath) ->
+  % trim "objects/" out of storage path
+  string:substr(RawStoragePath, 9).
+
+% FIXME add unit tests

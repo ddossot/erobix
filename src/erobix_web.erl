@@ -75,12 +75,12 @@ respond(Req, XmlData) ->
   Req:respond({200, [{"Content-Type", ?OBIX_MIME_TYPE}], XmlData}).
 
 error(Req, ErrorCode) ->
-  Url = erobix_lib:get_url(Req),
+  Url = {url, RawUrl} = erobix_lib:get_url(Req),
   {xml, XmlData} = erobix_lib:build_xml_response(Url,
                                                  err,
                                                  [{is, "obix:" ++ ErrorCode},
                                                   {displayName, ErrorCode},
-                                                  {display, ErrorCode ++ " for: " ++ Url}],
+                                                  {display, ErrorCode ++ " for: " ++ RawUrl}],
                                                  []),
   respond(Req, XmlData).
   
@@ -89,5 +89,5 @@ error(Req, ErrorCode) ->
 %%
 -include_lib("eunit/include/eunit.hrl").
 -ifdef(TEST).
-%% TODO unit test get_option
+% TODO add unit tests
 -endif.

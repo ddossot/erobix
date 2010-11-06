@@ -28,8 +28,8 @@ serve(Req, Extent) ->
 %% Private functions
 render(Req, Extent) ->
   AboutXml = generate(),
-  Url = {url, erobix_lib:get_url(Req)},
-  {AboutObject, _} = erobix_lib:parse_object_xml(Url, AboutXml),
+  Url = erobix_lib:get_url(Req),
+  {AboutObject, _} = erobix_lib:parse_object_xml(AboutXml),
   erobix_lib:render_object_xml(Url, AboutObject, Extent).
 
 generate() ->  
@@ -42,15 +42,15 @@ children() ->
   {ok, Version} = application:get_key(erobix, vsn),
   
   [
-   {str, [{name, "obixVersion"}, {val, "1.0"}, {href, "obixVersion/"}, {displayName, "oBIX Version"}], []},
-   {str, [{name, "serverName"}, {val, "erOBIX Server"}, {href, "serverName/"}, {displayName, "Server Name"}], []},
-   {str, [{name, "vendorName"}, {val, "Dossot Software Consulting Inc."}, {href, "vendorName/"}, {displayName, "Vendor Name"}], []},
-   {str, [{name, "productName"}, {val, "erOBIX"}, {href, "productName/"}, {displayName, "Product Name"}], []},
-   {str, [{name, "productVersion"}, {val, Version}, {href, "productVersion/"}, {displayName, "Product Version"}], []},
-   {uri, [{name, "vendorUrl"}, {val, "http://consulting.dossot.net"}, {href, "vendorUrl/"}, {displayName, "Vendor Url"}], []},
-   {uri, [{name, "productUrl"}, {val, "http://github.net/ddossot/erobix"}, {href, "productUrl/"}, {displayName, "Product Url"}], []},
-   {abstime, [{name, "serverTime"}, {val, erobix_lib:xml_zulu_timestamp()}, {href, "serverTime/"}, {displayName, "Server Time"}], []},
-   {abstime, [{name, "serverBootTime"}, {val, erobix_lib:xml_zulu_boottime()}, {href, "serverBootTime/"}, {displayName, "Server Boot Time"}], []}
+   {str,     [{'_extent', "obixVersion/"}, {name, "obixVersion"}, {val, "1.0"}, {href, "obixVersion/"}, {displayName, "oBIX Version"}], []},
+   {str,     [{'_extent', "serverName/"}, {name, "serverName"}, {val, "erOBIX Server"}, {href, "serverName/"}, {displayName, "Server Name"}], []},
+   {str,     [{'_extent', "vendorName/"}, {name, "vendorName"}, {val, "Dossot Software Consulting Inc."}, {href, "vendorName/"}, {displayName, "Vendor Name"}], []},
+   {str,     [{'_extent', "productName/"}, {name, "productName"}, {val, "erOBIX"}, {href, "productName/"}, {displayName, "Product Name"}], []},
+   {str,     [{'_extent', "productVersion/"}, {name, "productVersion"}, {val, Version}, {href, "productVersion/"}, {displayName, "Product Version"}], []},
+   {uri,     [{'_extent', "vendorUrl/"}, {name, "vendorUrl"}, {val, "http://consulting.dossot.net"}, {href, "vendorUrl/"}, {displayName, "Vendor Url"}], []},
+   {uri,     [{'_extent', "productUrl/"}, {name, "productUrl"}, {val, "http://github.net/ddossot/erobix"}, {href, "productUrl/"}, {displayName, "Product Url"}], []},
+   {abstime, [{'_extent', "serverTime/"}, {name, "serverTime"}, {val, erobix_lib:xml_zulu_timestamp()}, {href, "serverTime/"}, {displayName, "Server Time"}], []},
+   {abstime, [{'_extent', "serverBootTime/"}, {name, "serverBootTime"}, {val, erobix_lib:xml_zulu_boottime()}, {href, "serverBootTime/"}, {displayName, "Server Boot Time"}], []}
   ].
 
 
@@ -62,7 +62,7 @@ children() ->
 
 generate_test() ->
   AboutXml = generate(),
-  {{AboutObjectType, _}, {extents, RawAboutExtents}} = erobix_lib:parse_object_xml({url, "http://amulet:8888/obix/about"}, AboutXml),
+  {{AboutObjectType, _}, {extents, RawAboutExtents}} = erobix_lib:parse_object_xml(AboutXml),
   ?assertEqual(object, AboutObjectType),
   ?assertEqual(9, length(RawAboutExtents)),
   ok.
