@@ -28,8 +28,9 @@ start() ->
 unauthenticated_tests() ->
   etap:msg("\nUnauthenticated Tests --------------------"),
   bad_uri_err(),
-  get_lobby(),
-  get_about(),
+  lobby(),
+  about(),
+  objects(),
   ok.
 
 bad_uri_err() ->
@@ -48,55 +49,96 @@ bad_method_err(ErrUrl) ->
 err(ErrUrl, ErrCode, HttpMethod) ->
   Result = ibrowse:send_req(ErrUrl, [], HttpMethod),
   ErrUrlDom = ensure_valid_obix_response(Result),
-  ensure_href(ErrUrl, ErrUrlDom),
+  ensure_attribute("href", ErrUrl, ErrUrlDom),
   ensure_obj_of_type("err", ErrCode, ErrUrlDom),
   ok.
   
-get_lobby() ->
+lobby() ->
   etap:msg("\nLobby Tests"),
   LobbyUrl = ?OBIX_SERVER_URL ++ "/",
   Result = ibrowse:send_req(LobbyUrl, [], get),
   LobbyDom = ensure_valid_obix_response(Result),
-  ensure_href(LobbyUrl, LobbyDom),
+  ensure_attribute("href", LobbyUrl, LobbyDom),
   ensure_obj_of_type("obj", "obix:Lobby", LobbyDom),
   
   {_, _, [AboutRef, ObjectsRef]} = LobbyDom,
   
-  ensure_href("about/", AboutRef),
+  ensure_attribute("href", "about/", AboutRef),
   ensure_obj_of_type("ref", "obix:About", AboutRef),
   
-  ensure_href("objects/", ObjectsRef),
+  ensure_attribute("href", "objects/", ObjectsRef),
   ensure_obj_of_type("ref", ObjectsRef),
   
   bad_method_err(LobbyUrl),
   ok.
 
-get_about() ->
+about() ->
   etap:msg("\nAbout Tests"),
   AboutUrl = ?OBIX_SERVER_URL ++ "/about/",
   Result = ibrowse:send_req(AboutUrl, [], get),
   AboutDom = ensure_valid_obix_response(Result),
-  ensure_href(AboutUrl, AboutDom),
+  ensure_attribute("href", AboutUrl, AboutDom),
   ensure_obj_of_type("obj", "obix:About", AboutDom),
   
   {_, _, [ObixVersionStr|_]} = AboutDom,
-  ensure_href("obixVersion/", ObixVersionStr),
+  ensure_attribute("href", "obixVersion/", ObixVersionStr),
   ensure_obj_of_type("str", ObixVersionStr),
-  ensure_value("1.0", ObixVersionStr),
+  ensure_attribute("val", "1.0", ObixVersionStr),
   
   ObixVersionUrl = AboutUrl ++ "obixVersion/",
   Result2 = ibrowse:send_req(ObixVersionUrl, [], get),
   ObixVersionDom = ensure_valid_obix_response(Result2),
-  ensure_href(ObixVersionUrl, ObixVersionDom),
+  ensure_attribute("href", ObixVersionUrl, ObixVersionDom),
   ensure_obj_of_type("str", ObixVersionDom),
-  ensure_value("1.0", ObixVersionDom),
+  ensure_attribute("val", "1.0", ObixVersionDom),
   
   bad_method_err(AboutUrl),
   bad_uri_err(AboutUrl ++ "bad_extent/"),
   ok.
 
-% TODO test /objects then get one object and its extents
+objects() ->
+  etap:msg("\nObjects Tests"),
+  ObjectsUrl = ?OBIX_SERVER_URL ++ "/objects/",
+  Result = ibrowse:send_req(ObjectsUrl, [], get),
+  ObjectsDom = ensure_valid_obix_response(Result),
+  ensure_attribute("href", ObjectsUrl, ObjectsDom),
+  ensure_obj_of_type("list", ObjectsDom),
+  ensure_attribute("of", "obix:ref", ObjectsDom),
   
+  % fetch an non-existent object
+  bad_uri_err(ObjectsUrl ++ "_bad_object_url/"),
+  
+  % fetch an existing object
+  {_, _, [ObjectRef|_]} = ObjectsDom,
+  ensure_obj_of_type("ref", ObjectRef),
+  ObjectHref = get_attribute("href", ObjectRef),
+  object(ObjectsUrl ++ ObjectHref),
+  ok.
+
+object(ObjectUrl) ->
+  object(ObjectUrl, "obj").
+  
+object(ObjectUrl, ObjectType) ->
+  etap:msg("\nObject Tests: " ++ ObjectUrl),
+  Result = ibrowse:send_req(ObjectUrl, [], get),
+  ObjectDom = ensure_valid_obix_response(Result),
+  ensure_attribute("href", ObjectUrl, ObjectDom),
+  ensure_obj_of_type(ObjectType, '*', ObjectDom),
+
+  {_, _, Children} = ObjectDom,
+  lists:foreach(
+    fun(Child = {ChildType, ChildAttributes, _}) ->
+      case get_attribute("href", Child) of
+        undefined ->
+          noop;
+        ChildHref ->
+          object(ObjectUrl ++ ChildHref, string:substr(ChildType, 1 + string:len(?OBIX_NS)))
+      end
+    end,
+    Children),
+  
+  ok.
+
 ensure_valid_obix_response({_, _, Headers, Body}) ->
   etap:is(proplists:get_value("Content-Type", Headers),
           "text/xml",
@@ -116,13 +158,25 @@ ensure_valid_obix_response({_, _, Headers, Body}) ->
   Dom.
 
 ensure_obj_of_type(ExpectedElement, Actual) ->
-  ensure_obj_of_type(ExpectedElement, undefined, Actual),
+  ensure_obj_of_type(ExpectedElement, '*', Actual),
   ok.
 
 ensure_obj_of_type(ExpectedElement,
+                   '*',
+                   {ActualElement = ?OBIX_NS ++ ExpectedElement, Attributes, _}) ->
+  ok;
+ensure_obj_of_type(ExpectedElement,
+                   '?',
+                   {ActualElement = ?OBIX_NS ++ ExpectedElement, Attributes, _}) ->
+
+  etap:isnt(proplists:get_value("is", Attributes),
+            undefined,
+            "@is is correct on " ++ ActualElement),
+  ok;
+ensure_obj_of_type(ExpectedElement,
                    ExpectedType,
                    {ActualElement = ?OBIX_NS ++ ExpectedElement, Attributes, _}) ->
-                   
+
   etap:is(proplists:get_value("is", Attributes),
           ExpectedType,
           "@is is correct on " ++ ActualElement),
@@ -131,15 +185,12 @@ ensure_obj_of_type(ExpectedElement, _, Actual) ->
   etap:is(ExpectedElement, Actual, "correct xml element"),
   ok.
 
-ensure_href(ExpectedHref, {ActualElement, Attributes, _}) ->
-  etap:is(proplists:get_value("href", Attributes),
-          ExpectedHref,
-          "@href is correct on " ++ ActualElement),
-  ok.  
-
-ensure_value(ExpectedValue, {ActualElement, Attributes, _}) ->
-  etap:is(proplists:get_value("val", Attributes),
+ensure_attribute(AttributeName, ExpectedValue, Element = {ActualElement, Attributes, _}) ->
+  etap:is(get_attribute(AttributeName, Element),
           ExpectedValue,
-          "@val is correct on " ++ ActualElement),
+          "@" ++ AttributeName ++ " is correct on " ++ ActualElement),
   ok.
+
+get_attribute(AttributeName, {_, Attributes, _}) ->
+  proplists:get_value(AttributeName, Attributes).
 
