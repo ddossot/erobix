@@ -15,13 +15,13 @@
 %% @spec start(_Type, _StartArgs) -> ServerRet
 %% @doc application start callback for erobix.
 start(_Type, _StartArgs) ->
-    erobix_deps:ensure(),
-    erobix_sup:start_link().
+  erobix_deps:ensure(),
+  erobix_sup:start_link().
 
 %% @spec stop(_State) -> ServerRet
 %% @doc application stop callback for erobix.
 stop(_State) ->
-    ok.
+  ok.
 
 %%
 %% Tests

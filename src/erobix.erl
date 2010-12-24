@@ -13,35 +13,37 @@
 %% @spec start() -> ok
 %% @doc Start the erobix server.
 start() ->
-    erobix_deps:ensure(),
-    ensure_started(crypto),
-    ensure_started(ssl),
-    ensure_started(log4erl),
-    application:start(erldis),
-    application:start(erobix).
+  erobix_deps:ensure(),
+  ensure_started(crypto),
+  ensure_started(public_key),
+  ensure_started(ssl),
+  ensure_started(log4erl),
+  log4erl:conf("conf/log4erl.cfg"),
+  application:start(erldis),
+  application:start(erobix).
 
 %% @spec stop() -> ok
 %% @doc Stop the erobix server.
 stop() ->
-    Res = application:stop(erobix),
-    application:stop(erldis),
-    application:stop(log4erl),
-    application:stop(ssl),
-    application:stop(crypto),
-    Res.
+  Res = application:stop(erobix),
+  application:stop(erldis),
+  application:stop(log4erl),
+  application:stop(ssl),
+  application:stop(crypto),
+  Res.
 
 %% @spec quit() -> ok
 %% @doc Stop and quit the erobix server.
 quit() ->
-    stop(),
-    init:stop().
+  stop(),
+  init:stop().
 
 %% Private functions
 ensure_started(App) ->
-    case application:start(App) of
-        ok ->
-            ok;
-        {error, {already_started, App}} ->
-            ok
-    end.
+  case application:start(App) of
+    ok ->
+      ok;
+    {error, {already_started, App}} ->
+      ok
+  end.
 

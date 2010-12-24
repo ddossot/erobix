@@ -18,4 +18,4 @@
   {mod, {erobix_app, []}},
   {env, [
         ]},
-  {applications, [kernel, stdlib, crypto, ssl, log4erl, erldis]}]}.
+  {applications, [kernel, stdlib, crypto, public_key, ssl, log4erl, erldis]}]}.

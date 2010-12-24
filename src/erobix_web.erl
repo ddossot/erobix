@@ -16,8 +16,6 @@
 %% External API
 
 start(Options) ->
-  log4erl:conf("conf/log4erl.cfg"),
-  
   {DocRoot, Options1} = get_option(docroot, Options),
   
   Loop = fun (Req) ->
@@ -41,30 +39,30 @@ loop(Req, DocRoot) ->
     
     {error, bad_request} ->
       ?log_info("Bad Request: ~1024p", [Req]),
-      error(Req, "UnsupportedErr");
+      respond_error(Req, "UnsupportedErr");
     
     {error, not_found} ->
       ?log_info("Not Found: ~1024p", [Req]),
-      error(Req, "BadUriErr");
+      respond_error(Req, "BadUriErr");
       
     {error, forbidden} ->
       ?log_info("Forbidden: ~1024p", [Req]),
-      error(Req, "PermissionErr");
+      respond_error(Req, "PermissionErr");
     
     {error, Cause} ->
       ?log_info("~1024p: ~1024p", [Cause, Req]),
-      error(Req, "ServerErr");
+      respond_error(Req, "ServerErr");
       
     Other ->
       ?log_info("Unknown response type: ~1024p", [Other]),
-      error(Req, "ServerErr")
+      respond_error(Req, "ServerErr")
     
   catch
     Type:Reason ->
       ?log_error_with_stacktrace(Type, Reason,
                                  "processing request: ~4096p, Body: ~4096p",
                                  [Req, erlang:get(mochiweb_request_body)]),
-      error(Req, "ServerErr")
+      respond_error(Req, "ServerErr")
   end.
 
 %% Private functions
@@ -74,7 +72,7 @@ get_option(Option, Options) ->
 respond(Req, XmlData) ->
   Req:respond({200, [{"Content-Type", ?OBIX_MIME_TYPE}], XmlData}).
 
-error(Req, ErrorCode) ->
+respond_error(Req, ErrorCode) ->
   Url = {url, RawUrl} = erobix_lib:get_url(Req),
   {xml, XmlData} = erobix_lib:build_xml_response(Url,
                                                  err,
