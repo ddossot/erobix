@@ -1,23 +1,31 @@
 %%%
-%%% @doc Storage methods.
+%%% @doc Redis backed storage.
 %%% @author David Dossot <david@dossot.net>
 %%%
 %%% See LICENSE for license information.
 %%% Copyright (c) 2010 David Dossot
 %%%
 
--module(erobix_store).
+-module(erobix_redis_store).
 -author('David Dossot <david@dossot.net>').
 
 -include_lib("xmerl/include/xmerl.hrl").
 -include("erobix.hrl").
 
--export([store_object_def/3, get_object_def/1, get_all_object_defs/0]).
+-export([start/0, stop/0,
+         store_object_def/3, get_object_def/1, get_all_object_defs/0]).
 
 -define(OBJECT_DEFS, <<"object_defs">>).
 
-store_object_def(ServerUrl = {url, RawServerUrl},
-                 StoragePath = {storage_path, RawStoragePath},
+start() ->
+  application:start(erldis),
+  ?log_info("started, Redis info: ~1024p", [erldis:info(erldis_client())]).
+
+stop() ->
+  application:stop(erldis).
+
+store_object_def({url, RawServerUrl},
+                 {storage_path, RawStoragePath},
                  ObjectXml = {xml, RawObjectXml})
   when is_list(RawServerUrl), is_list(RawStoragePath), is_list(RawObjectXml) ->
 
@@ -35,7 +43,7 @@ store_object_def(ServerUrl = {url, RawServerUrl},
 
 % TODO delete_object_def, dropping history and watches 
 
-get_object_def(StoragePath = {storage_path, RawStoragePath}) when is_list(RawStoragePath) ->
+get_object_def({storage_path, RawStoragePath}) when is_list(RawStoragePath) ->
   RawStoragePathBin = list_to_binary(erobix_lib:ensure_trailing_slash(RawStoragePath)),
   
   case erldis:hget(erldis_client(), ?OBJECT_DEFS, RawStoragePathBin) of

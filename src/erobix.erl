@@ -8,7 +8,8 @@
 -module(erobix).
 -author('David Dossot <david@dossot.net>').
 
--export([start/0, stop/0, quit/0]).
+-export([start/0, stop/0, quit/0,
+         get_store/0]).
 
 %% @spec start() -> ok
 %% @doc Start the erobix server.
@@ -19,14 +20,17 @@ start() ->
   ensure_started(ssl),
   ensure_started(log4erl),
   log4erl:conf("conf/log4erl.cfg"),
-  application:start(erldis),
+  application:load(erobix),
+  Store = get_store(),
+  Store:start(),
   application:start(erobix).
 
 %% @spec stop() -> ok
 %% @doc Stop the erobix server.
 stop() ->
   Res = application:stop(erobix),
-  application:stop(erldis),
+  Store = get_store(),
+  Store:stop(),
   application:stop(log4erl),
   application:stop(ssl),
   application:stop(crypto),
@@ -38,6 +42,12 @@ quit() ->
   stop(),
   init:stop().
 
+%% @spec get_store() -> atom()
+%% @doc Get the store implementation.
+get_store() ->
+  {ok, Store} = application:get_env(erobix, store),
+  Store.
+  
 %% Private functions
 ensure_started(App) ->
   case application:start(App) of

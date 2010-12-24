@@ -11,11 +11,12 @@
     erobix_router,
     erobix_lobby,
     erobix_about,
-    erobix_store,
+    erobix_redis_store,
     erobix_object_manager
   ]},
   {registered, []},
   {mod, {erobix_app, []}},
   {env, [
+         {store, erobix_redis_store}
         ]},
   {applications, [kernel, stdlib, crypto, public_key, ssl, log4erl, erldis]}]}.

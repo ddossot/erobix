@@ -43,7 +43,8 @@ serve(Req, {storage_path, RawStoragePath}) when is_list(RawStoragePath) ->
 
 %% Server functions
 init([]) ->
-  AllObjectDefs = erobix_store:get_all_object_defs(),
+  Store = erobix:get_store(),
+  AllObjectDefs = Store:get_all_object_defs(),
   ObjectsAndRefsDict = parse_object_defs(AllObjectDefs),
   ?log_info("started with ~p object definitions", [length(AllObjectDefs)]),
   {ok, #state{objects_and_refs_dict=ObjectsAndRefsDict}}.
