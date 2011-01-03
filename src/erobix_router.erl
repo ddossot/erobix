@@ -39,7 +39,7 @@ handle_obix(Req, PathElements) ->
 
     ["objects" | _] ->
       StoragePath = {storage_path, string:join(PathElements, "/")},
-      erobix_object_manager:serve(Req, StoragePath);
+      erobix_object_server:serve(Req, StoragePath);
       
     _ ->
       {error, not_found}

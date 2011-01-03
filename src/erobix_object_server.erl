@@ -6,8 +6,7 @@
 %%% Copyright (c) 2010 David Dossot
 %%%
 
-% FIXME rename to erobix_object_server
--module(erobix_object_manager).
+-module(erobix_object_server).
 -author('David Dossot <david@dossot.net>').
 
 -behaviour(gen_server).

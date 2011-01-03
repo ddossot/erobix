@@ -12,7 +12,7 @@
     erobix_lobby,
     erobix_about,
     erobix_redis_store,
-    erobix_object_manager
+    erobix_object_server
   ]},
   {registered, []},
   {mod, {erobix_app, []}},

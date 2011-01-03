@@ -51,7 +51,7 @@ init([]) ->
                  {docroot, erobix_deps:local_path(["priv", "www"])}],
                  
     ObjectIndex = {object_index,
-           {erobix_object_manager, start_link, []},
+           {erobix_object_server, start_link, []},
            permanent, 5000, worker, dynamic},
            
     Web = {web,
