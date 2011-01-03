@@ -43,7 +43,7 @@ serve(Req, {storage_path, RawStoragePath}) when is_list(RawStoragePath) ->
 %% Server functions
 init([]) ->
   Store = erobix:get_store(),
-  % TODO load object definitions from the file system
+  % FIXME load object definitions from the file system
   AllObjectDefs = Store:get_all_object_defs(),
   ObjectsAndRefsDict = parse_object_defs(AllObjectDefs),
   ?log_info("started with ~p object definitions", [length(AllObjectDefs)]),

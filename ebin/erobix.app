@@ -12,7 +12,8 @@
     erobix_lobby,
     erobix_about,
     erobix_redis_store,
-    erobix_object_server
+    erobix_object_server,
+    erobix_data_sup
   ]},
   {registered, []},
   {mod, {erobix_app, []}},
