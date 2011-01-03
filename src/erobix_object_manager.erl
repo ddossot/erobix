@@ -44,6 +44,7 @@ serve(Req, {storage_path, RawStoragePath}) when is_list(RawStoragePath) ->
 %% Server functions
 init([]) ->
   Store = erobix:get_store(),
+  % TODO load object definitions from the file system
   AllObjectDefs = Store:get_all_object_defs(),
   ObjectsAndRefsDict = parse_object_defs(AllObjectDefs),
   ?log_info("started with ~p object definitions", [length(AllObjectDefs)]),
@@ -115,7 +116,7 @@ parse_object_defs(AllObjectDefs) ->
 parse_object_defs([], Objects) ->
   Objects;
 parse_object_defs([{StoragePath = {storage_path, RawStoragePath}, ObjectXml}|Rest], Objects) ->
-  {Object, {extents, RawExtents}} = erobix_lib:parse_object_xml(ObjectXml),
+  {Object, {extents, RawExtents}, {writable_extents, WritableRawExtents}} = erobix_lib:parse_object_xml(ObjectXml),
   
   NewObjects =
     lists:foldl(
@@ -154,4 +155,4 @@ rel_url(RawStoragePath) ->
   % trim "objects/" out of storage path
   string:substr(RawStoragePath, 9).
 
-% FIXME add unit tests
+% TODO add unit tests
