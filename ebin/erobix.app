@@ -13,7 +13,8 @@
     erobix_about,
     erobix_redis_store,
     erobix_object_server,
-    erobix_data_sup
+    erobix_data_sup,
+    erobix_data_server
   ]},
   {registered, []},
   {mod, {erobix_app, []}},

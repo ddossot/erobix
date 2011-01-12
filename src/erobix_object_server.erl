@@ -1,5 +1,6 @@
 %%%
-%%% @doc Object object manager gen_server.
+%%% @doc Object server.
+%%%      Serves Obix objects as XML entities. 
 %%% @author David Dossot <david@dossot.net>
 %%%
 %%% See LICENSE for license information.
@@ -19,7 +20,7 @@
 -record(state, {objects_and_refs_dict}).
 
 start_link() ->
-    gen_server:start_link({local, ?SERVER}, ?SERVER, [], []).
+  gen_server:start_link({local, ?SERVER}, ?SERVER, [], []).
 
 serve(Req, {storage_path, RawStoragePath}) when is_list(RawStoragePath) ->
   Method = Req:get(method),
@@ -50,6 +51,8 @@ init([]) ->
   {ok, #state{objects_and_refs_dict=ObjectsAndRefsDict}}.
 
 handle_call({get_object, Url, StoragePath}, _From, State = #state{objects_and_refs_dict=ObjectsAndRefsDict}) ->
+  % FIXME get and merge values in object
+  % FIXME fork a process to build the response
   Response =
     case get_object(StoragePath, ObjectsAndRefsDict) of
       Object = {object, _} ->
@@ -115,7 +118,7 @@ parse_object_defs(AllObjectDefs) ->
 parse_object_defs([], Objects) ->
   Objects;
 parse_object_defs([{StoragePath = {storage_path, RawStoragePath}, ObjectXml}|Rest], Objects) ->
-  {Object, {extents, RawExtents}, {writable_extents, WritableRawExtents}} = erobix_lib:parse_object_xml(ObjectXml),
+  {Object, {extents, RawExtents}} = erobix_lib:parse_object_xml(ObjectXml),
   
   NewObjects =
     lists:foldl(
