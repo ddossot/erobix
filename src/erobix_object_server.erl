@@ -17,7 +17,7 @@
 -export([start_link/0, serve/2]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--record(state, {objects_and_refs_dict}).
+-record(state, {objects_and_refs_dict, list_of_object_refs}).
 
 start_link() ->
   gen_server:start_link({local, ?SERVER}, ?SERVER, [], []).
@@ -47,8 +47,14 @@ init([]) ->
   % FIXME load object definitions from the file system
   AllObjectDefs = Store:get_all_object_defs(),
   ObjectsAndRefsDict = parse_object_defs(AllObjectDefs),
+  
+  % pre-compute and cache the list of all object refs
+  ListOfObjectRefs =
+    [{ref, [{href, rel_url(RawStoragePath)} | erobix_lib:get_object_names(Object)], []}
+     || {{storage_path, RawStoragePath}, Object} <- only_objects(ObjectsAndRefsDict)],
+  
   ?log_info("started with ~p object definitions", [length(AllObjectDefs)]),
-  {ok, #state{objects_and_refs_dict=ObjectsAndRefsDict}}.
+  {ok, #state{objects_and_refs_dict=ObjectsAndRefsDict, list_of_object_refs=ListOfObjectRefs}}.
 
 handle_call({get_object, Url, StoragePath}, From, State = #state{objects_and_refs_dict=ObjectsAndRefsDict}) ->
   ResponseFun =
@@ -75,17 +81,19 @@ handle_call({get_object, Url, StoragePath}, From, State = #state{objects_and_ref
   spawn(ResponseFun),
   {noreply, State};
 
-handle_call({list_all_objects, Url}, _From, State = #state{objects_and_refs_dict=ObjectsAndRefsDict}) ->
-  ObjectRefs =
-    [{ref, [{href, rel_url(RawStoragePath)} | erobix_lib:get_object_names(Object)], []}
-     || {{storage_path, RawStoragePath}, Object} <- only_objects(ObjectsAndRefsDict)],
-     
-  Response =
-    erobix_lib:build_xml_response(Url,
-                                  list,
-                                  [{displayName, "Object List"}, {'of', "obix:ref"}],
-                                  ObjectRefs),
-  {reply, Response, State};
+handle_call({list_all_objects, Url}, From, State = #state{list_of_object_refs=ListOfObjectRefs}) ->
+  ResponseFun =
+    fun() ->
+      Response =
+        erobix_lib:build_xml_response(Url,
+                                      list,
+                                      [{displayName, "Object List"}, {'of', "obix:ref"}],
+                                      ListOfObjectRefs),
+        gen_server:reply(From, Response)
+    end,
+  
+  spawn(ResponseFun),
+  {noreply, State};
   
 handle_call(_Request, _From, State) ->
   ?unexpected_call(handle_call, [_Request, _From]),
