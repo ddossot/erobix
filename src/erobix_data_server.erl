@@ -34,11 +34,9 @@ get_values(StoragePath = {storage_path, RawStoragePath}) when is_list(RawStorage
 init([ServerName, StoragePath]) ->
   Store = erobix:get_store(),
   ObjectXml = Store:get_object_def(StoragePath),
-  {Object, _} = erobix_lib:parse_object_xml(ObjectXml),
+  Object = erobix_lib:parse_object_xml(ObjectXml),
   
-  WritableExtents =
-    {writable_extents, RawWritableExtents} =
-      erobix_lib:get_writable_extents(Object),
+  {writable_extents, RawWritableExtents} = erobix_lib:get_writable_extents(Object),
   
   % FIXME ensure all writeable extents have stored data values
   % FIXME store all current values in 

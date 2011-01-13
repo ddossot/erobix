@@ -29,7 +29,7 @@ serve(Req, Extent) ->
 render(Req, Extent) ->
   AboutXml = generate(),
   Url = erobix_lib:get_url(Req),
-  {AboutObject, _} = erobix_lib:parse_object_xml(AboutXml),
+  AboutObject = erobix_lib:parse_object_xml(AboutXml),
   erobix_lib:render_object_xml(Url, AboutObject, Extent).
 
 generate() ->  
@@ -62,8 +62,9 @@ children() ->
 
 generate_test() ->
   AboutXml = generate(),
-  {{AboutObjectType, _}, {extents, RawAboutExtents}} = erobix_lib:parse_object_xml(AboutXml),
+  AboutObject = {AboutObjectType, _} = erobix_lib:parse_object_xml(AboutXml),
   ?assertEqual(object, AboutObjectType),
+  {extents, RawAboutExtents} = erobix_lib:get_all_extents(AboutObject),
   ?assertEqual(9, length(RawAboutExtents)),
   ok.
 

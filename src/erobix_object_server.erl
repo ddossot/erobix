@@ -118,7 +118,8 @@ parse_object_defs(AllObjectDefs) ->
 parse_object_defs([], Objects) ->
   Objects;
 parse_object_defs([{StoragePath = {storage_path, RawStoragePath}, ObjectXml}|Rest], Objects) ->
-  {Object, {extents, RawExtents}} = erobix_lib:parse_object_xml(ObjectXml),
+  Object = erobix_lib:parse_object_xml(ObjectXml),
+  {extents, RawExtents} = erobix_lib:get_all_extents(Object),
   
   NewObjects =
     lists:foldl(
