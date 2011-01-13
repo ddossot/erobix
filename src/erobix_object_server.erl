@@ -59,7 +59,9 @@ init([]) ->
 handle_call({get_object, Url, StoragePath}, From, State = #state{objects_and_refs_dict=ObjectsAndRefsDict}) ->
   ResponseFun =
     fun() ->
-      % FIXME get and merge values in object
+      ObjectValues = erobix_data_server:get_values(StoragePath),
+      % FIXME merge values in object
+      
       Response =
         case get_object(StoragePath, ObjectsAndRefsDict) of
           Object = {object, _} ->
