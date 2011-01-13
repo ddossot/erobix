@@ -35,11 +35,9 @@ init([ServerName, StoragePath]) ->
   Store = erobix:get_store(),
   ObjectXml = Store:get_object_def(StoragePath),
   Object = erobix_lib:parse_object_xml(ObjectXml),
-  
   {writable_extents, RawWritableExtents} = erobix_lib:get_writable_extents(Object),
   
-  % FIXME ensure all writeable extents have stored data values
-  % FIXME store all current values in 
+  % FIXME store all current values in dict, using object's values as default 
   ?log_info("started ~p with ~p writable extents", [ServerName, length(RawWritableExtents)]),
   {ok, #state{server_name=ServerName, store=Store, extents_data_dict=dict:new()}}.
 
