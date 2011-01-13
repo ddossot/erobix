@@ -50,26 +50,30 @@ init([]) ->
   ?log_info("started with ~p object definitions", [length(AllObjectDefs)]),
   {ok, #state{objects_and_refs_dict=ObjectsAndRefsDict}}.
 
-handle_call({get_object, Url, StoragePath}, _From, State = #state{objects_and_refs_dict=ObjectsAndRefsDict}) ->
-  % FIXME get and merge values in object
-  % FIXME fork a process to build the response
-  Response =
-    case get_object(StoragePath, ObjectsAndRefsDict) of
-      Object = {object, _} ->
-        erobix_lib:render_object_xml(Url, Object);
-        
-      {Object = {object, _}, Extent = {extent, _}} ->
-        erobix_lib:render_object_xml(Url, Object, Extent);
-        
-      Error = {error, _} ->
-        Error;
-      
-      Other ->
-        ?log_error("Unexpected get_object result: ~1024p", [Other]),
-        {error, server_error}
+handle_call({get_object, Url, StoragePath}, From, State = #state{objects_and_refs_dict=ObjectsAndRefsDict}) ->
+  ResponseFun =
+    fun() ->
+      % FIXME get and merge values in object
+      Response =
+        case get_object(StoragePath, ObjectsAndRefsDict) of
+          Object = {object, _} ->
+            erobix_lib:render_object_xml(Url, Object);
+            
+          {Object = {object, _}, Extent = {extent, _}} ->
+            erobix_lib:render_object_xml(Url, Object, Extent);
+            
+          Error = {error, _} ->
+            Error;
+          
+          Other ->
+            ?log_error("Unexpected get_object result: ~1024p", [Other]),
+            {error, server_error}
+        end,
+        gen_server:reply(From, Response)
     end,
-    
-  {reply, Response, State};
+  
+  spawn(ResponseFun),
+  {noreply, State};
 
 handle_call({list_all_objects, Url}, _From, State = #state{objects_and_refs_dict=ObjectsAndRefsDict}) ->
   ObjectRefs =
