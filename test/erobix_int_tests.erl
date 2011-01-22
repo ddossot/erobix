@@ -127,7 +127,7 @@ object(ObjectUrl, ObjectType) ->
 
   {_, _, Children} = ObjectDom,
   lists:foreach(
-    fun(Child = {ChildType, ChildAttributes, _}) ->
+    fun(Child = {ChildType, _ChildAttributes, _}) ->
       case get_attribute("href", Child) of
         undefined ->
           noop;
@@ -163,7 +163,7 @@ ensure_obj_of_type(ExpectedElement, Actual) ->
 
 ensure_obj_of_type(ExpectedElement,
                    '*',
-                   {ActualElement = ?OBIX_NS ++ ExpectedElement, Attributes, _}) ->
+                   {_ActualElement = ?OBIX_NS ++ ExpectedElement, _Attributes, _}) ->
   ok;
 ensure_obj_of_type(ExpectedElement,
                    '?',
@@ -185,7 +185,7 @@ ensure_obj_of_type(ExpectedElement, _, Actual) ->
   etap:is(ExpectedElement, Actual, "correct xml element"),
   ok.
 
-ensure_attribute(AttributeName, ExpectedValue, Element = {ActualElement, Attributes, _}) ->
+ensure_attribute(AttributeName, ExpectedValue, Element = {ActualElement, _Attributes, _}) ->
   etap:is(get_attribute(AttributeName, Element),
           ExpectedValue,
           "@" ++ AttributeName ++ " is correct on " ++ ActualElement),

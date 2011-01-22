@@ -14,6 +14,9 @@ Erlang Obix Server
 TODO
 ----
 
+- Value writing
+- State change
+- Core Contracts (11)
 - Inheritance flattening (6.6.1)
 - Batch (10.5)
 - Watches (12)

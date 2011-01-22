@@ -20,7 +20,7 @@
 
 -export([get_url/1, ensure_trailing_slash/1, build_xml_response/4, export_xml/1,
          build_object_xml/3, normalize_object_xml/2, parse_object_xml/1,
-         get_all_extents/1, get_writable_extents/1, get_object_names/1,
+         get_all_extents/1, get_writable_extents/1, get_object_names/1, get_object_value/3,
          render_object_xml/2, render_object_xml/3,
          xml_zulu_timestamp/0, xml_zulu_boottime/0]).
 
@@ -76,7 +76,18 @@ get_writable_extents({object, RawObject}) when is_record(RawObject, xmlElement) 
 get_object_names({object, RawObject}) when is_record(RawObject, xmlElement) ->
   NameAttributes = xmerl_xpath:string("/node()/@name | /node()/@displayName", RawObject),
   [{Name, Value} || #xmlAttribute{name=Name, value=Value} <- NameAttributes].
+
+get_object_value({object, RawObject}, Extent = {extent, RawExtent}, DefaultValue)
+  when is_record(RawObject, xmlElement), is_list(RawExtent) ->
   
+  case xmerl_xpath:string(select_extent_xpath(Extent) ++ "/@val", RawObject) of
+    [#xmlAttribute{value=Value}] ->
+      Value;
+      
+    [] ->
+      DefaultValue
+  end.
+
 render_object_xml({url, RawRequestUrl}, {object, RawObject})
   when is_list(RawRequestUrl), is_record(RawObject, xmlElement) ->
   
@@ -97,18 +108,10 @@ render_object_xml({url, RawRequestUrl}, {object, RawObject}, {extent, ""})
   
   render_object_xml({url, RawRequestUrl}, {object, RawObject});
 
-render_object_xml({url, RawRequestUrl}, {object, RawObject}, {extent, RawExtent})
+render_object_xml({url, RawRequestUrl}, {object, RawObject}, Extent = {extent, RawExtent})
   when is_list(RawRequestUrl), is_record(RawObject, xmlElement), is_list(RawExtent) ->
-  
-  XPathResult =
-    xmerl_xpath:string("//node()[@"
-                         ++ atom_to_list(?EXTENT_ATTRIBUTE_NAME)
-                         ++ "='"
-                         ++ ensure_trailing_slash(RawExtent)
-                         ++ "']",
-                       RawObject),
-  
-  case XPathResult of
+ 
+  case xmerl_xpath:string(select_extent_xpath(Extent), RawObject) of
     [ChildObject | _] ->
       render_object_xml({url, RawRequestUrl}, {object, ChildObject});
       
@@ -146,7 +149,6 @@ add_schema_attributes_if_needed(Attributes) when is_list(Attributes) ->
     false ->
       ?SCHEMA_ATTRIBUTES ++ Attributes
   end.
-
 
 normalize_object_doc(RequestUrl, Doc)
   when is_list(RequestUrl), is_record(Doc, xmlElement) ->
@@ -218,6 +220,9 @@ remove_attribute(Element = #xmlElement{attributes = Attributes}, AttributeName)
     
   Element#xmlElement{attributes = FilteredAttributes}.
   
+select_extent_xpath({extent, RawExtent}) when is_list(RawExtent) ->
+  "//node()[@" ++ atom_to_list(?EXTENT_ATTRIBUTE_NAME) ++ "='" ++ ensure_trailing_slash(RawExtent) ++ "']".
+                       
 %% @doc Ensure the object href complies to Erobix strict rules.
 %%      This is not applicable for ref elements, for which href is free.
 normalize_object_href(RequestUrl, UrlToNormalize)
@@ -270,7 +275,6 @@ uri_type(Uri) when is_list(Uri) ->
     _ ->
       global_absolute
   end.
-
   
 ensure_leading_slash(Url = [$/|_]) ->
   Url;
@@ -362,53 +366,57 @@ get_all_extents_test() ->
     normalize_object_xml({url, "http://data/foo"},
                          {xml, "<?xml version=\"1.0\"?><obj href=\"/foo/bar\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://obix.org/ns/schema/1.0\" xmlns=\"http://obix.org/ns/schema/1.0\"/>"}), 
   Object1 = parse_object_xml(NormalizedObjectXml1), 
-  ?assertEqual([], get_all_extents(Object1)),
+  ?assertEqual({extents, []}, get_all_extents(Object1)),
 
   NormalizedObjectXml2 =
     normalize_object_xml({url, "http://testbed.tml.hut.fi/obix/tg-at-tuas/1/"},
                          {xml, "<?xml version='1.0' encoding='UTF-8'?><obj href='http://testbed.tml.hut.fi/obix/tg-at-tuas/1/' displayName='HomeControlCenter 1' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' xsi:schemaLocation='http://obix.org/ns/schema/1.0' xmlns='http://obix.org/ns/schema/1.0'><str name='type' displayName='Device Type' href='http://testbed.tml.hut.fi/obix/tg-at-tuas/1/type/' val='HomeControlCenter:1'></str></obj>"}),
   Object2 = parse_object_xml(NormalizedObjectXml2),
-  ?assertEqual(["type/"], get_all_extents(Object2)),
+  ?assertEqual({extents, ["type/"]}, get_all_extents(Object2)),
                
   NormalizedObjectXml3 =
     normalize_object_xml({url, "http://testbed.tml.hut.fi/obix/test/TestDevice/"},
                          {xml, "<?xml version='1.0' encoding='UTF-8'?><obj name='TestDevice' href='http://testbed.tml.hut.fi/obix/test/TestDevice/' displayName='Device for tests' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' xsi:schemaLocation='http://obix.org/ns/schema/1.0' xmlns='http://obix.org/ns/schema/1.0'><enum name='conditionMode' href='http://testbed.tml.hut.fi/obix/test/TestDevice/enum/' displayName='Air Condition Mode' val='homeDay' writable='true'><list href='http://testbed.tml.hut.fi/obix/test/TestDevice/enum/range/' is='obix:Range'><obj name='homeDay' displayName='At home: Day mode'></obj></list></enum><bool name='running' href='./running' is='obix:WritablePoint' val='true'/></obj>"}),
   Object3 = parse_object_xml(NormalizedObjectXml3),
-  ?assertEqual(["enum/", "running/", "enum/range/"], get_all_extents(Object3)),
+  ?assertEqual({extents, ["enum/", "running/", "enum/range/"]}, get_all_extents(Object3)),
   ok.
   
 get_writable_extents_test() ->
-  {Object1, _} =
-    parse_object_xml({xml, "<?xml version=\"1.0\"?><obj name=\"TestDevice\" displayName=\"Device for tests\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://obix.org/ns/schema/1.0\" xmlns=\"http://obix.org/ns/schema/1.0\"><enum _extent=\"enum/\" name=\"conditionMode\" href=\"enum/\" displayName=\"Air Condition Mode\" val=\"homeDay\" writable=\"true\"><list _extent=\"enum/range/\" href=\"range/\" is=\"obix:Range\"><obj name=\"homeDay\" displayName=\"At home: Day mode\"/></list></enum><bool _extent=\"running/\" name=\"running\" href=\"running/\" is=\"obix:WritablePoint\" val=\"true\"/></obj>"}),
+  Object1 = parse_object_xml({xml, "<?xml version=\"1.0\"?><obj name=\"TestDevice\" displayName=\"Device for tests\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://obix.org/ns/schema/1.0\" xmlns=\"http://obix.org/ns/schema/1.0\"><enum _extent=\"enum/\" name=\"conditionMode\" href=\"enum/\" displayName=\"Air Condition Mode\" val=\"homeDay\" writable=\"true\"><list _extent=\"enum/range/\" href=\"range/\" is=\"obix:Range\"><obj name=\"homeDay\" displayName=\"At home: Day mode\"/></list></enum><bool _extent=\"running/\" name=\"running\" href=\"running/\" is=\"obix:WritablePoint\" val=\"true\"/></obj>"}),
   ?assertEqual({writable_extents, ["enum/", "running/"]}, get_writable_extents(Object1)),
   
-  {Object2, _} =
-    parse_object_xml({xml, "<?xml version=\"1.0\"?><obj href=\"/foo/bar\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://obix.org/ns/schema/1.0\" xmlns=\"http://obix.org/ns/schema/1.0\"/>"}),
+  Object2 = parse_object_xml({xml, "<?xml version=\"1.0\"?><obj href=\"/foo/bar\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://obix.org/ns/schema/1.0\" xmlns=\"http://obix.org/ns/schema/1.0\"/>"}),
   ?assertEqual({writable_extents, []}, get_writable_extents(Object2)),
   ok.
   
 get_object_names_test() ->
-  {Object1, _} =
-    parse_object_xml({xml, "<?xml version='1.0' encoding='UTF-8'?><obj name='TestDevice' href='http://testbed.tml.hut.fi/obix/test/TestDevice/' displayName='Device for tests' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' xsi:schemaLocation='http://obix.org/ns/schema/1.0' xmlns='http://obix.org/ns/schema/1.0'><enum name='conditionMode' href='http://testbed.tml.hut.fi/obix/test/TestDevice/enum/' displayName='Air Condition Mode' val='homeDay' writable='true'><list href='http://testbed.tml.hut.fi/obix/test/TestDevice/enum/range/' is='obix:Range'><obj name='homeDay' displayName='At home: Day mode'></obj></list></enum></obj>"}),
+  Object1= parse_object_xml({xml, "<?xml version='1.0' encoding='UTF-8'?><obj name='TestDevice' href='http://testbed.tml.hut.fi/obix/test/TestDevice/' displayName='Device for tests' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' xsi:schemaLocation='http://obix.org/ns/schema/1.0' xmlns='http://obix.org/ns/schema/1.0'><enum name='conditionMode' href='http://testbed.tml.hut.fi/obix/test/TestDevice/enum/' displayName='Air Condition Mode' val='homeDay' writable='true'><list href='http://testbed.tml.hut.fi/obix/test/TestDevice/enum/range/' is='obix:Range'><obj name='homeDay' displayName='At home: Day mode'></obj></list></enum></obj>"}),
   ObjectNames = get_object_names(Object1),
   ?assertEqual("TestDevice", proplists:get_value(name, ObjectNames)),
   ?assertEqual("Device for tests", proplists:get_value(displayName, ObjectNames)),
   
-  {Object2, _} =
-    parse_object_xml({xml, "<?xml version=\"1.0\"?><obj href=\"/foo/bar\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://obix.org/ns/schema/1.0\" xmlns=\"http://obix.org/ns/schema/1.0\"/>"}),
+  Object2 = parse_object_xml({xml, "<?xml version=\"1.0\"?><obj href=\"/foo/bar\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://obix.org/ns/schema/1.0\" xmlns=\"http://obix.org/ns/schema/1.0\"/>"}),
   ?assertEqual([], get_object_names(Object2)),
+  ok.
+
+get_object_value_test() ->
+  NormalizedObject =
+    normalize_object_xml({url, "http://testbed.tml.hut.fi/obix/test/TestDevice/"},
+                         {xml, "<?xml version='1.0' encoding='UTF-8'?><obj name='TestDevice' href='http://testbed.tml.hut.fi/obix/test/TestDevice/' displayName='Device for tests' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' xsi:schemaLocation='http://obix.org/ns/schema/1.0' xmlns='http://obix.org/ns/schema/1.0'><enum name='conditionMode' href='http://testbed.tml.hut.fi/obix/test/TestDevice/enum/' displayName='Air Condition Mode' val='homeDay' writable='true'><list href='http://testbed.tml.hut.fi/obix/test/TestDevice/enum/range/' is='obix:Range'><obj name='homeDay' displayName='At home: Day mode'></obj></list></enum><bool name='running' href='./running' is='obix:WritablePoint' val='true'/></obj>"}),
+  Object = parse_object_xml(NormalizedObject),
+  ?assertEqual("homeDay", get_object_value(Object, {extent, "enum/"}, "")),
+  ?assertEqual("true", get_object_value(Object, {extent, "running/"}, "")),
+  ?assertEqual("", get_object_value(Object, {extent, "foo/"}, "")),
   ok.
   
 render_object_xml_test() ->
   ObjectXml1 = {xml, "<?xml version=\"1.0\"?><obj href=\"http://testbed.tml.hut.fi/obix/tg-at-tuas/1/\" name=\"TestDevice\" displayName=\"Device for tests\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://obix.org/ns/schema/1.0\" xmlns=\"http://obix.org/ns/schema/1.0\"><enum name=\"conditionMode\" href=\"enum/\" displayName=\"Air Condition Mode\" val=\"homeDay\" writable=\"true\"><list href=\"range/\" is=\"obix:Range\"><obj name=\"homeDay\" displayName=\"At home: Day mode\"/></list></enum></obj>"},
-  {Object1, _} =
-    parse_object_xml(normalize_object_xml({url, "http://testbed.tml.hut.fi/obix/test/TestDevice/"}, ObjectXml1)),
+  Object1 = parse_object_xml(normalize_object_xml({url, "http://testbed.tml.hut.fi/obix/test/TestDevice/"}, ObjectXml1)),
   ?assertEqual(ObjectXml1, render_object_xml({url, "http://testbed.tml.hut.fi/obix/tg-at-tuas/1/"}, Object1)),
   ?assertEqual(ObjectXml1, render_object_xml({url, "http://testbed.tml.hut.fi/obix/tg-at-tuas/1/"}, Object1, {extent, ""})),
   
   ObjectXml2 = {xml, "<?xml version=\"1.0\"?><obj href=\"http://testbed.tml.hut.fi/obix/tg-at-tuas/1/\" name=\"TestDevice\" displayName=\"Device for tests\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://obix.org/ns/schema/1.0\" xmlns=\"http://obix.org/ns/schema/1.0\"><enum name=\"conditionMode\" href=\"enum/\" displayName=\"Air Condition Mode\" val=\"homeDay\" writable=\"true\"><list href=\"range/\" is=\"obix:Range\"><obj name=\"homeDay\" displayName=\"At home: Day mode\"/></list></enum></obj>"},
-  {Object2, _} =
-    parse_object_xml(normalize_object_xml({url, "http://testbed.tml.hut.fi/obix/test/TestDevice/"}, ObjectXml2)),
+  Object2 = parse_object_xml(normalize_object_xml({url, "http://testbed.tml.hut.fi/obix/test/TestDevice/"}, ObjectXml2)),
   ?assertEqual({xml, "<?xml version=\"1.0\"?><list xmlns=\"http://obix.org/ns/schema/1.0\" href=\"http://testbed.tml.hut.fi/obix/tg-at-tuas/1/enum/range/\" is=\"obix:Range\"><obj name=\"homeDay\" displayName=\"At home: Day mode\"/></list>"},
                render_object_xml({url, "http://testbed.tml.hut.fi/obix/tg-at-tuas/1/enum/range/"}, Object2, {extent, "enum/range/"})),
   ?assertEqual({xml, "<?xml version=\"1.0\"?><list xmlns=\"http://obix.org/ns/schema/1.0\" href=\"http://testbed.tml.hut.fi/obix/tg-at-tuas/1/enum/range/\" is=\"obix:Range\"><obj name=\"homeDay\" displayName=\"At home: Day mode\"/></list>"},

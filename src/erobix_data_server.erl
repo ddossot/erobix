@@ -16,7 +16,7 @@
 -export([start_link/2, get_values/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--record(state, {server_name, store, extents_data_dict}).
+-record(state, {server_name, store, object_def, extents_data_dict}).
 
 start_link(ServerName, StoragePath = {storage_path, RawStoragePath})
   when is_atom(ServerName), is_list(RawStoragePath) ->
@@ -37,9 +37,28 @@ init([ServerName, StoragePath]) ->
   Object = erobix_lib:parse_object_xml(ObjectXml),
   {writable_extents, RawWritableExtents} = erobix_lib:get_writable_extents(Object),
   
-  % FIXME store all current values in dict, using object's values as default 
-  ?log_info("started ~p with ~p writable extents", [ServerName, length(RawWritableExtents)]),
-  {ok, #state{server_name=ServerName, store=Store, extents_data_dict=dict:new()}}.
+  ExtentsData =
+    lists:foldl(
+      fun(RawWritableExtent, Dict) ->
+        WritableExtent = {extent, RawWritableExtent},
+        
+        case Store:get_latest_value(StoragePath, WritableExtent) of
+          {error, _} ->
+            dict:store(WritableExtent,
+                       {calendar:universal_time(), {value, erobix_lib:get_object_value(Object, WritableExtent, "")}},
+                       Dict);
+                       
+          TimeStampUtcAndValue ->
+            dict:store(WritableExtent,
+                       TimeStampUtcAndValue,
+                       Dict)
+        end
+      end,
+      dict:new(),
+      RawWritableExtents),
+  
+  ?log_info("started ~p with ~p writable extents", [ServerName, dict:size(ExtentsData)]),
+  {ok, #state{server_name=ServerName, store=Store, object_def=Object, extents_data_dict=ExtentsData}}.
 
 handle_call(_Request, _From, State) ->
   ?unexpected_call(handle_call, [_Request, _From]),

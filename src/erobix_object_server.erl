@@ -44,7 +44,7 @@ serve(Req, {storage_path, RawStoragePath}) when is_list(RawStoragePath) ->
 %% Server functions
 init([]) ->
   Store = erobix:get_store(),
-  % FIXME load object definitions from the file system
+  % TODO load object definitions from the file system
   AllObjectDefs = Store:get_all_object_defs(),
   ObjectsAndRefsDict = parse_object_defs(AllObjectDefs),
   
